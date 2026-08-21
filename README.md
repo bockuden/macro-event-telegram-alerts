@@ -1,5 +1,11 @@
 # Macro Event Telegram Alerts
 
+[![CI](https://github.com/bockuden/macro-event-telegram-alerts/actions/workflows/ci.yml/badge.svg)](https://github.com/bockuden/macro-event-telegram-alerts/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![Ruff](https://img.shields.io/badge/ruff-checked-D7FF64?logo=ruff&logoColor=261230)](https://docs.astral.sh/ruff/)
+[![mypy: strict](https://img.shields.io/badge/mypy-strict-2A6DB2)](https://mypy-lang.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Reliable Telegram reminders before significant macroeconomic events, built from
 public schedules published by the institutions that produce the releases.
 
