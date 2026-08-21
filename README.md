@@ -31,6 +31,29 @@ remain visible.
 - a non-root Docker image, Docker Compose, health checks, and CI;
 - deterministic tests that never depend on live government websites.
 
+## Development
+
+The project targets Python 3.12 and uses a `src` package layout. Create an
+isolated environment and install the package with its development tools:
+
+```bash
+python -m venv .venv
+python -m pip install --upgrade pip
+python -m pip install --editable ".[dev]"
+```
+
+Run the same quality checks used by CI:
+
+```bash
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy
+python -m pytest
+```
+
+These commands use only local fixtures and require no production integration
+or secret.
+
 ## Initial official sources
 
 | Institution | Planned v0.1 coverage | Public schedule |
@@ -91,4 +114,3 @@ as evidence appears.
 
 The project code is licensed under the MIT License. Official source material
 remains subject to each institution's policies and attribution requirements.
-
