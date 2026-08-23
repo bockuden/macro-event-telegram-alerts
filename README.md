@@ -88,6 +88,7 @@ Notifications are calendar reminders, not trading signals or financial advice.
 ## Project documents
 
 - [Product brief](docs/product-brief.md)
+- [Normalized event model and fixture contract](docs/event-model.md)
 - [Official source catalog](docs/source-catalog.md)
 - [Roadmap](docs/roadmap.md)
 - [ADR 0001: official-source portfolio](docs/adr/0001-official-source-portfolio.md)

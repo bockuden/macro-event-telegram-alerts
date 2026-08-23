@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from json import JSONDecodeError
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -99,21 +99,38 @@ def _event_times(raw: JsonObject) -> tuple[datetime | None, datetime | None]:
         "source_timezone",
     )
     try:
-        parsed = datetime.fromisoformat(timestamp)
-    except ValueError as error:
-        raise FixtureError("starts_at must be an ISO 8601 datetime") from error
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise FixtureError("starts_at must include an explicit UTC offset")
-
-    try:
         source_timezone = ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError as error:
         raise FixtureError(f"unknown source_timezone: {timezone_name}") from error
 
-    source_local = parsed.astimezone(source_timezone)
-    if source_local.replace(tzinfo=None) != parsed.replace(tzinfo=None):
-        raise FixtureError("starts_at offset does not match source_timezone")
+    try:
+        parsed = datetime.fromisoformat(timestamp)
+    except ValueError as error:
+        raise FixtureError("starts_at must be an ISO 8601 datetime") from error
+
+    source_local = _source_local_time(parsed, source_timezone)
     return source_local, source_local.astimezone(UTC)
+
+
+def _source_local_time(value: datetime, source_timezone: ZoneInfo) -> datetime:
+    if value.tzinfo is not None and value.utcoffset() is not None:
+        source_local = value.astimezone(source_timezone)
+        if source_local.replace(tzinfo=None) != value.replace(tzinfo=None):
+            raise FixtureError("starts_at offset does not match source_timezone")
+        return source_local
+
+    candidates: dict[timedelta | None, datetime] = {}
+    for fold in (0, 1):
+        candidate = value.replace(tzinfo=source_timezone, fold=fold)
+        round_trip = candidate.astimezone(UTC).astimezone(source_timezone)
+        if round_trip.replace(tzinfo=None) == value:
+            candidates[candidate.utcoffset()] = candidate
+
+    if not candidates:
+        raise FixtureError("starts_at is a nonexistent source-local time")
+    if len(candidates) > 1:
+        raise FixtureError("starts_at is ambiguous; include an explicit UTC offset")
+    return next(iter(candidates.values()))
 
 
 def _policy(raw: JsonObject) -> SignificancePolicy:
