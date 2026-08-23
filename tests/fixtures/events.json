@@ -1,0 +1,30 @@
+{
+  "events": [
+    {
+      "source_id": "bls:cpi:2026-09-15",
+      "title": "Consumer Price Index",
+      "institution": "U.S. Bureau of Labor Statistics",
+      "source_url": "https://www.bls.gov/schedule/news_release/cpi.htm",
+      "scheduled_date": "2026-09-15",
+      "timing_precision": "exact",
+      "source_timezone": "America/New_York",
+      "starts_at": "2026-09-15T08:30:00-04:00",
+      "policy": {
+        "significance": "significant",
+        "revision": "us-major-events-v1"
+      }
+    },
+    {
+      "source_id": "bea:gdp:2026-09-30",
+      "title": "Gross Domestic Product",
+      "institution": "U.S. Bureau of Economic Analysis",
+      "source_url": "https://www.bea.gov/news/schedule",
+      "scheduled_date": "2026-09-30",
+      "timing_precision": "date_only",
+      "policy": {
+        "significance": "significant",
+        "revision": "us-major-events-v1"
+      }
+    }
+  ]
+}
