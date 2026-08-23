@@ -12,7 +12,9 @@ license = "MIT"
 authors = [
   { name = "Bockuden" },
 ]
-dependencies = []
+dependencies = [
+  "tzdata>=2025.2; platform_system == 'Windows'",
+]
 
 [project.optional-dependencies]
 dev = [
