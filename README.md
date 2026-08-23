@@ -39,22 +39,40 @@ remain visible.
 
 ## Development
 
-The project targets Python 3.12 and uses a `src` package layout. Create an
-isolated environment and install the package with its development tools:
+The project targets Python 3.12 or newer and uses a `src` package layout.
+Bootstrap an isolated environment with the script for your platform.
 
-```bash
-python -m venv .venv
-python -m pip install --upgrade pip
-python -m pip install --editable ".[dev]"
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
 ```
 
-Run the same quality checks used by CI:
+Linux:
 
 ```bash
-python -m ruff check .
-python -m ruff format --check .
-python -m mypy
-python -m pytest
+./scripts/bootstrap.sh
+```
+
+Both scripts create `.venv` and install the package with its development tools.
+Run the same quality checks used by CI with the environment's Python.
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m mypy
+.\.venv\Scripts\python.exe -m pytest
+```
+
+Linux:
+
+```bash
+.venv/bin/python -m ruff check .
+.venv/bin/python -m ruff format --check .
+.venv/bin/python -m mypy
+.venv/bin/python -m pytest
 ```
 
 These commands use only local fixtures and require no production integration
