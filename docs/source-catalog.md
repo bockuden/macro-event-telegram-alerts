@@ -5,20 +5,27 @@ release merely because its page is publicly accessible.
 
 ## U.S. Bureau of Labor Statistics
 
-- **Planned events:** CPI, Employment Situation, PPI, JOLTS
+- **Implemented events:** CPI, Employment Situation, PPI, JOLTS
 - **Schedule:** https://www.bls.gov/schedule/news_release/
 - **ICS feed:** https://www.bls.gov/schedule/news_release/bls.ics
 - **Authentication:** none
-- **Planned adapter:** iCalendar
+- **Adapter:** iCalendar, implemented with strict parsing and offline contract
+  tests
 - **Reuse note:** BLS states that its published material is public domain, with
   limited exceptions for previously copyrighted media, and asks users to cite BLS.
 - **Operational note:** BLS prohibits excessive automated retrieval. The adapter
-  must poll conservatively, cache responses, and use a contactable User-Agent.
+  requires a contactable User-Agent, validates no more than once every six hours
+  by default, uses conditional requests, and persists a local cache.
+- **Timing note:** floating calendar times are interpreted in
+  `America/New_York`, matching the BLS calendar's Eastern Time convention;
+  explicit UTC and date-only values remain distinguishable.
 
 References:
 
 - https://www.bls.gov/opub/copyright-information.htm
 - https://www.bls.gov/bls/blsterms.htm
+- https://www.bls.gov/help/hlpiCAL.htm
+- [Detailed adapter policy](bls-adapter.md)
 
 ## U.S. Bureau of Economic Analysis
 
@@ -66,4 +73,3 @@ Before adding an institution, document:
 - attribution and reuse requirements;
 - respectful polling and caching policy;
 - minimal sanitized fixtures and parser failure behavior.
-

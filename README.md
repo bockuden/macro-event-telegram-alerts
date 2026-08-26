@@ -9,7 +9,8 @@
 Reliable Telegram reminders before significant macroeconomic events, built from
 public schedules published by the institutions that produce the releases.
 
-> **Status:** planning and architecture. No working bot has been released yet.
+> **Status:** BLS calendar ingestion is implemented; reminder delivery and the
+> Telegram bot are not released yet.
 
 The project will turn a curated set of official release calendars into timely,
 deduplicated Telegram notifications. It is intended for traders, researchers,
@@ -78,6 +79,19 @@ Linux:
 These commands use only local fixtures and require no production integration
 or secret.
 
+## Implemented BLS ingestion
+
+The BLS adapter reads only the official, credential-free BLS iCalendar feed and
+selects CPI, Employment Situation, PPI, and JOLTS using a reviewed exact-alias
+policy. It normalizes Eastern Time to UTC, retains official source links, and
+keeps date-only events date-only.
+
+Live retrieval requires a contactable `User-Agent`, validates the feed no more
+than once every six hours by default, uses HTTP cache validators, and can reuse a
+stale local cache during a temporary failure. Parser and transport tests are
+fully offline. See the [BLS adapter policy](docs/bls-adapter.md) for source,
+alias, attribution, and operational details.
+
 ## Initial official sources
 
 | Institution | Planned v0.1 coverage | Public schedule |
@@ -107,6 +121,7 @@ Notifications are calendar reminders, not trading signals or financial advice.
 
 - [Product brief](docs/product-brief.md)
 - [Normalized event model and fixture contract](docs/event-model.md)
+- [BLS adapter source and retrieval policy](docs/bls-adapter.md)
 - [Official source catalog](docs/source-catalog.md)
 - [Roadmap](docs/roadmap.md)
 - [ADR 0001: official-source portfolio](docs/adr/0001-official-source-portfolio.md)
