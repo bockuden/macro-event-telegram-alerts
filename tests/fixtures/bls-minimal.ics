@@ -1,0 +1,40 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//U.S. Bureau of Labor Statistics//Release Calendar//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:cpi-2026-09@example.bls.gov
+DTSTAMP:20260821T193000Z
+DTSTART;TZID=America/New_York:20260911T083000
+SUMMARY:Consumer Price Index
+URL:https://www.bls.gov/news.release/cpi.nr0.htm
+END:VEVENT
+BEGIN:VEVENT
+UID:empsit-2026-09@example.bls.gov
+DTSTAMP:20260821T193000Z
+DTSTART:20260904T083000
+SUMMARY:Employment Situation
+URL:https://www.bls.gov/news.release/empsit.nr0.htm
+END:VEVENT
+BEGIN:VEVENT
+UID:ppi-2026-09@example.bls.gov
+DTSTAMP:20260821T193000Z
+DTSTART:20260910T123000Z
+SUMMARY:Producer Price Indexes
+END:VEVENT
+BEGIN:VEVENT
+UID:jolts-2026-09@example.bls.gov
+DTSTAMP:20260821T193000Z
+DTSTART;VALUE=DATE:20260902
+SUMMARY:Job Openings and Labor Turnover
+  Survey
+URL:https://www.bls.gov/news.release/jolts.nr0.htm
+END:VEVENT
+BEGIN:VEVENT
+UID:ignored-2026-09@example.bls.gov
+DTSTAMP:20260821T193000Z
+DTSTART;TZID=America/New_York:20260903T083000
+SUMMARY:Productivity and Costs
+URL:https://www.bls.gov/news.release/prod2.nr0.htm
+END:VEVENT
+END:VCALENDAR
