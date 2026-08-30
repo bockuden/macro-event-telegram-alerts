@@ -29,14 +29,24 @@ References:
 
 ## U.S. Bureau of Economic Analysis
 
-- **Planned events:** GDP releases; Personal Income and Outlays/PCE
-- **Schedule:** https://www.bea.gov/news/schedule
+- **Implemented events:** national GDP releases; Personal Income and Outlays/PCE
+- **Schedule:** https://www.bea.gov/news/schedule/full
 - **Authentication:** none for the public release schedule
-- **Planned adapter:** HTML schedule parser
-- **Reuse note:** retain BEA attribution and the official release URL. Recheck
-  applicable BEA website policies before a production or commercial release.
-- **Operational note:** the live parser must use bounded polling and a recorded
-  fixture; a layout change must fail visibly rather than emit guessed events.
+- **Adapter:** strict HTML schedule parser with offline contract tests
+- **Reuse note:** BEA describes its information as public domain unless stated
+  otherwise and appreciates attribution. Retain BEA attribution and the official
+  release or schedule URL; do not imply agency endorsement.
+- **Operational note:** the adapter requires a contactable User-Agent, validates
+  no more than once every six hours by default, uses conditional requests, and
+  persists a local cache. Reviewed table, row, and field structure must match.
+- **Timing note:** schedule times are interpreted in `America/New_York`, following
+  BEA's published Eastern Time release convention.
+
+References:
+
+- https://www.bea.gov/help/faq/147
+- https://www.bea.gov/about/policies-and-information/linking
+- [Detailed adapter policy](bea-adapter.md)
 
 ## Federal Reserve Board
 
