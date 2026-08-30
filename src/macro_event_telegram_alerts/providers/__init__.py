@@ -1,5 +1,13 @@
 """Offline and live event providers."""
 
+from macro_event_telegram_alerts.providers.bea_schedule import (
+    BEA_INSTITUTION,
+    BEA_SIGNIFICANCE_POLICY,
+    BeaEventFamily,
+    BeaScheduleError,
+    BeaScheduleProvider,
+    parse_bea_schedule,
+)
 from macro_event_telegram_alerts.providers.bea_transport import (
     BEA_SCHEDULE_URL,
     BeaSchedulePayload,
@@ -26,11 +34,16 @@ from macro_event_telegram_alerts.providers.fixture import (
 )
 
 __all__ = [
+    "BEA_INSTITUTION",
     "BEA_SCHEDULE_URL",
+    "BEA_SIGNIFICANCE_POLICY",
     "BLS_CALENDAR_URL",
     "BLS_INSTITUTION",
     "BLS_SIGNIFICANCE_POLICY",
+    "BeaEventFamily",
+    "BeaScheduleError",
     "BeaSchedulePayload",
+    "BeaScheduleProvider",
     "BeaScheduleTransport",
     "BeaTransportError",
     "BlsCalendarError",
@@ -41,5 +54,6 @@ __all__ = [
     "BlsTransportError",
     "FixtureError",
     "JsonFixtureProvider",
+    "parse_bea_schedule",
     "parse_bls_calendar",
 ]
