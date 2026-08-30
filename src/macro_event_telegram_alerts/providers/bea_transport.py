@@ -1,4 +1,4 @@
-"""Respectful, cached transport for the official BLS iCalendar feed."""
+"""Respectful, cached transport for the official BEA release schedule."""
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -12,26 +12,26 @@ from macro_event_telegram_alerts.providers.cached_http import (
     HttpResult,
 )
 
-BLS_CALENDAR_URL = "https://www.bls.gov/schedule/news_release/bls.ics"
+BEA_SCHEDULE_URL = "https://www.bea.gov/news/schedule/full"
 DEFAULT_MIN_POLL_INTERVAL = timedelta(hours=6)
-MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 
 
-class BlsTransportError(RuntimeError):
-    """The official BLS calendar could not be retrieved or cached safely."""
+class BeaTransportError(RuntimeError):
+    """The official BEA schedule could not be retrieved or cached safely."""
 
 
 @dataclass(frozen=True, slots=True)
-class BlsCalendarPayload:
-    """Calendar text plus provenance about when it was retrieved."""
+class BeaSchedulePayload:
+    """Schedule HTML plus provenance about when it was retrieved."""
 
     text: str
     retrieved_at: datetime
     from_cache: bool
 
 
-class BlsCalendarTransport:
-    """Fetch only the official BLS ICS feed with conditional requests."""
+class BeaScheduleTransport:
+    """Fetch only the official BEA full schedule with conditional requests."""
 
     def __init__(
         self,
@@ -44,28 +44,28 @@ class BlsCalendarTransport:
         http_get: HttpGet | None = None,
     ) -> None:
         self._transport = CachedDocumentTransport(
-            source_name="BLS calendar",
-            url=BLS_CALENDAR_URL,
+            source_name="BEA schedule",
+            url=BEA_SCHEDULE_URL,
             cache_dir=cache_dir,
-            document_filename="bls.ics",
-            metadata_filename="bls-cache.json",
+            document_filename="bea-schedule.html",
+            metadata_filename="bea-schedule-cache.json",
             user_agent=user_agent,
             clock=clock,
-            accept="text/calendar",
-            expected_content_type="text/calendar",
+            accept="text/html",
+            expected_content_type="text/html",
             min_poll_interval=min_poll_interval,
             max_response_bytes=MAX_RESPONSE_BYTES,
             timeout_seconds=timeout_seconds,
             http_get=http_get,
         )
 
-    def fetch(self) -> BlsCalendarPayload:
-        """Return a fresh or conditionally validated official calendar."""
+    def fetch(self) -> BeaSchedulePayload:
+        """Return a fresh or conditionally validated official schedule."""
         try:
             payload = self._transport.fetch()
         except CachedDocumentError as error:
-            raise BlsTransportError(str(error)) from error
-        return BlsCalendarPayload(
+            raise BeaTransportError(str(error)) from error
+        return BeaSchedulePayload(
             text=payload.text,
             retrieved_at=payload.retrieved_at,
             from_cache=payload.from_cache,
@@ -73,9 +73,9 @@ class BlsCalendarTransport:
 
 
 __all__ = [
-    "BLS_CALENDAR_URL",
-    "BlsCalendarPayload",
-    "BlsCalendarTransport",
-    "BlsTransportError",
+    "BEA_SCHEDULE_URL",
+    "BeaSchedulePayload",
+    "BeaScheduleTransport",
+    "BeaTransportError",
     "HttpResult",
 ]
