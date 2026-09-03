@@ -28,6 +28,12 @@ from macro_event_telegram_alerts.providers.bls_transport import (
     BlsCalendarTransport,
     BlsTransportError,
 )
+from macro_event_telegram_alerts.providers.fed_transport import (
+    FOMC_CALENDAR_URL,
+    FedTransportError,
+    FomcCalendarPayload,
+    FomcCalendarTransport,
+)
 from macro_event_telegram_alerts.providers.fixture import (
     FixtureError,
     JsonFixtureProvider,
@@ -40,6 +46,7 @@ __all__ = [
     "BLS_CALENDAR_URL",
     "BLS_INSTITUTION",
     "BLS_SIGNIFICANCE_POLICY",
+    "FOMC_CALENDAR_URL",
     "BeaEventFamily",
     "BeaScheduleError",
     "BeaSchedulePayload",
@@ -52,7 +59,10 @@ __all__ = [
     "BlsCalendarTransport",
     "BlsEventFamily",
     "BlsTransportError",
+    "FedTransportError",
     "FixtureError",
+    "FomcCalendarPayload",
+    "FomcCalendarTransport",
     "JsonFixtureProvider",
     "parse_bea_schedule",
     "parse_bls_calendar",
