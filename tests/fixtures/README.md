@@ -7,5 +7,8 @@
 - `bea-schedule-minimal.html` is a hand-minimized recording of the official BEA
   schedule structure and selected 2026 rows reviewed on August 30, 2026. It is
   not a complete page snapshot.
+- `fomc-calendar-minimal.html` is a hand-minimized recording of the official
+  FOMC 2025–2026 calendar structure reviewed on September 3, 2026. It includes
+  all eight regular 2026 meeting rows but is not a complete page snapshot.
 
 Tests read these files locally. They do not contact government websites.

@@ -50,19 +50,26 @@ References:
 
 ## Federal Reserve Board
 
-- **Planned events:** scheduled FOMC statements and press conferences
-- **Calendar:** https://www.federalreserve.gov/newsevents/calendar.htm
+- **Implemented events:** scheduled FOMC statements and Chair press conferences
 - **Meeting schedule:** https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
 - **Authentication:** none
-- **Planned adapter:** HTML calendar parser
-- **Timing note:** the Federal Reserve states that scheduled policy statements
-  are released at 2:00 p.m. Eastern Time on the second meeting day and the Chair's
-  press conference starts at 2:30 p.m. The live calendar remains authoritative.
-- **Operational note:** unscheduled or emergency decisions are outside v0.1.
+- **Adapter:** strict HTML meeting-calendar parser with offline contract tests
+- **Timing note:** official Federal Reserve documentation sets statements at
+  2:00 p.m. Eastern Time on the second meeting day and the Chair's press
+  conference at 2:30 p.m. Future dates retain `tentative` timing precision.
+- **Operational note:** exactly eight regular meetings are required per current
+  or future calendar year. Notation votes, unscheduled meetings, and emergency
+  decisions are outside v0.1. Retrieval uses a contactable User-Agent,
+  conditional requests, a six-hour minimum validation interval, and local cache.
+- **Reuse note:** retain Board attribution and official links; do not use seals
+  or logos or imply Federal Reserve endorsement.
 
-Reference:
+References:
 
 - https://www.federalreserve.gov/newsevents/pressreleases/monetary20240809a.htm
+- https://www.federalreserve.gov/faqs/about_12844.htm
+- https://www.federalreserve.gov/disclaimer.htm
+- [Detailed adapter policy](fomc-adapter.md)
 
 ## Project significance policy
 

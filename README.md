@@ -9,8 +9,8 @@
 Reliable Telegram reminders before significant macroeconomic events, built from
 public schedules published by the institutions that produce the releases.
 
-> **Status:** BLS and BEA schedule ingestion is implemented; FOMC ingestion,
-> reminder delivery, and the Telegram bot are not released yet.
+> **Status:** BLS, BEA, and scheduled FOMC ingestion is implemented; reminder
+> delivery and the Telegram bot are not released yet.
 
 The project will turn a curated set of official release calendars into timely,
 deduplicated Telegram notifications. It is intended for traders, researchers,
@@ -99,6 +99,14 @@ an official BEA release or schedule link. Its transport follows the same
 contactable, cached, conditional-request model. See the
 [BEA adapter policy](docs/bea-adapter.md) for the exact source and contract.
 
+The FOMC adapter reads only the official Federal Reserve meeting calendar and
+creates a policy-statement event at 2:00 p.m. Eastern plus a Chair press
+conference event at 2:30 p.m. Eastern for each regular meeting. Future calendar
+dates stay marked as tentative, published source links are retained, and
+unscheduled decisions are explicitly outside v0.1. See the
+[FOMC adapter policy](docs/fomc-adapter.md) for the documented timing rule and
+scope.
+
 ## Initial official sources
 
 | Institution | Planned v0.1 coverage | Public schedule |
@@ -130,6 +138,7 @@ Notifications are calendar reminders, not trading signals or financial advice.
 - [Normalized event model and fixture contract](docs/event-model.md)
 - [BLS adapter source and retrieval policy](docs/bls-adapter.md)
 - [BEA adapter source and retrieval policy](docs/bea-adapter.md)
+- [Scheduled FOMC adapter policy](docs/fomc-adapter.md)
 - [Official source catalog](docs/source-catalog.md)
 - [Roadmap](docs/roadmap.md)
 - [ADR 0001: official-source portfolio](docs/adr/0001-official-source-portfolio.md)
