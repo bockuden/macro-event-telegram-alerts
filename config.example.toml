@@ -1,0 +1,15 @@
+[application]
+# Choose one or more: bls, bea, fomc.
+sources = ["bls", "bea", "fomc"]
+timezone = "Europe/Chisinau"
+cache_dir = "state/cache"
+ledger_path = "state/reminders.sqlite3"
+source_poll_interval_minutes = 360
+loop_interval_seconds = 60
+reminder_lead_minutes = [1440, 60, 15]
+
+[telegram]
+# `chat_id` can be a numeric personal/group/channel ID or an @channelusername.
+chat_id = 123456789
+# Keep the token outside this file. The application reads the named environment variable.
+token_env = "MACRO_EVENT_TELEGRAM_BOT_TOKEN"
