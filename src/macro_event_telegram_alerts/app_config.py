@@ -39,6 +39,7 @@ class AppConfig:
     timezone: ZoneInfo
     cache_dir: Path
     ledger_path: Path
+    health_path: Path
     source_poll_interval: timedelta
     loop_interval: timedelta
     reminder_policy: ReminderPolicy
@@ -66,6 +67,7 @@ def load_config(path: Path) -> AppConfig:
             "timezone",
             "cache_dir",
             "ledger_path",
+            "health_path",
             "source_poll_interval_minutes",
             "loop_interval_seconds",
             "reminder_lead_minutes",
@@ -73,17 +75,24 @@ def load_config(path: Path) -> AppConfig:
         "application",
     )
     base_dir = path.parent.resolve()
+    ledger_path = _path(
+        _required(application, "ledger_path", "application"),
+        base_dir,
+        "ledger_path",
+    )
+    health_path = _path(
+        application.get("health_path", str(ledger_path.parent / "health.json")),
+        base_dir,
+        "health_path",
+    )
     return AppConfig(
         sources=_sources(_required(application, "sources", "application")),
         timezone=_timezone(_required(application, "timezone", "application")),
         cache_dir=_path(
             _required(application, "cache_dir", "application"), base_dir, "cache_dir"
         ),
-        ledger_path=_path(
-            _required(application, "ledger_path", "application"),
-            base_dir,
-            "ledger_path",
-        ),
+        ledger_path=ledger_path,
+        health_path=health_path,
         source_poll_interval=_positive_minutes(
             _required(application, "source_poll_interval_minutes", "application"),
             "source_poll_interval_minutes",

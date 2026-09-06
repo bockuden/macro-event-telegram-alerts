@@ -33,6 +33,7 @@ loop_interval_seconds = 60
     assert config.sources == (SourceName.BLS, SourceName.FOMC)
     assert config.cache_dir == tmp_path / "state" / "cache"
     assert config.ledger_path == tmp_path / "state" / "reminders.sqlite3"
+    assert config.health_path == tmp_path / "state" / "health.json"
     assert [
         int(lead.total_seconds() // 60) for lead in config.reminder_policy.lead_times
     ] == [

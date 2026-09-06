@@ -13,6 +13,7 @@ from macro_event_telegram_alerts import (
 from macro_event_telegram_alerts.app_config import SourceName
 from macro_event_telegram_alerts.app_runtime import ApplicationRunner, NamedProvider
 from macro_event_telegram_alerts.delivery_ledger import ReminderLedger
+from macro_event_telegram_alerts.health import HealthReporter
 from macro_event_telegram_alerts.reminder_service import ReminderService
 from macro_event_telegram_alerts.reminders import ReminderPolicy
 
@@ -91,3 +92,19 @@ def test_run_until_stopped_checks_stop_before_sleeping(tmp_path: Path) -> None:
 
     assert len(results) == 1
     assert sleeps == []
+
+
+def test_failed_source_does_not_refresh_health_state(tmp_path: Path) -> None:
+    health_path = tmp_path / "health.json"
+    runner = ApplicationRunner(
+        [NamedProvider(SourceName.BLS, _Provider(fails=True))],
+        ReminderService(
+            ReminderPolicy((timedelta(minutes=15),)),
+            ReminderLedger(tmp_path / "state.sqlite3"),
+        ),
+        HealthReporter(health_path),
+    )
+
+    runner.run_once(datetime(2026, 9, 15, 12, 20, tzinfo=UTC), lambda reminder: None)
+
+    assert not health_path.exists()

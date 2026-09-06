@@ -8,6 +8,7 @@ from typing import Protocol
 from macro_event_telegram_alerts.app_config import AppConfig, SourceName
 from macro_event_telegram_alerts.delivery_ledger import ReminderLedger
 from macro_event_telegram_alerts.domain import MacroEvent
+from macro_event_telegram_alerts.health import HealthReporter
 from macro_event_telegram_alerts.providers.bea_schedule import BeaScheduleProvider
 from macro_event_telegram_alerts.providers.bea_transport import BeaScheduleTransport
 from macro_event_telegram_alerts.providers.bls_calendar import BlsCalendarProvider
@@ -57,9 +58,11 @@ class ApplicationRunner:
         self,
         providers: Iterable[NamedProvider],
         reminder_service: ReminderService,
+        health_reporter: HealthReporter | None = None,
     ) -> None:
         self._providers = tuple(providers)
         self._reminder_service = reminder_service
+        self._health_reporter = health_reporter
 
     def run_once(
         self,
@@ -76,11 +79,18 @@ class ApplicationRunner:
             except Exception:
                 failures.append(named_provider.name)
         reminder_result = self._reminder_service.run(events, now_utc, deliver)
-        return ApplicationRunResult(
+        result = ApplicationRunResult(
             loaded_events=len(events),
             failed_sources=tuple(failures),
             reminder_result=reminder_result,
         )
+        if (
+            self._health_reporter is not None
+            and not result.failed_sources
+            and not result.reminder_result.failed
+        ):
+            self._health_reporter.record_success(now_utc)
+        return result
 
     def run_until_stopped(
         self,
@@ -160,6 +170,7 @@ def build_runner(config: AppConfig, *, clock: Clock) -> ApplicationRunner:
     return ApplicationRunner(
         build_official_providers(config, clock=clock),
         ReminderService(config.reminder_policy, ReminderLedger(config.ledger_path)),
+        HealthReporter(config.health_path),
     )
 
 

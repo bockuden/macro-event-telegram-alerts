@@ -4,6 +4,7 @@ sources = ["bls", "bea", "fomc"]
 timezone = "Europe/Chisinau"
 cache_dir = "state/cache"
 ledger_path = "state/reminders.sqlite3"
+health_path = "state/health.json"
 source_poll_interval_minutes = 360
 loop_interval_seconds = 60
 reminder_lead_minutes = [1440, 60, 15]
