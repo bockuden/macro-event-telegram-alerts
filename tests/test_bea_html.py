@@ -52,6 +52,25 @@ def test_parser_extracts_reviewed_table_structure() -> None:
     )
 
 
+def test_parser_keeps_unselected_to_be_announced_rows() -> None:
+    html = MINIMAL_SCHEDULE.replace(
+        "</tbody>",
+        """    <tr class=\"scheduled-releases-type-press\">
+      <td class=\"scheduled-date\">
+        <div class=\"release-date\">To Be Announced 2026</div>
+      </td>
+      <td>News</td>
+      <td class=\"release-title\">Outdoor Recreation Economic Statistics</td>
+      <td></td>
+    </tr>
+  </tbody>""",
+    )
+
+    document = parse_bea_schedule_html(html)
+
+    assert document.rows[-1].release_date == "To Be Announced 2026"
+
+
 @pytest.mark.parametrize(
     ("original", "replacement", "message"),
     [

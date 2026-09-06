@@ -4,6 +4,7 @@ import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -43,6 +44,7 @@ class _CacheMetadata:
     retrieved_at: datetime
     etag: str | None = None
     last_modified: str | None = None
+    retry_not_before: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +103,9 @@ class CachedDocumentTransport:
         now = _utc_time(self._clock(), "clock")
         cached = self._read_cache()
         if cached is not None:
+            retry_not_before = cached.metadata.retry_not_before
+            if retry_not_before is not None and now < retry_not_before:
+                return _payload_from_cache(cached)
             age = now - cached.metadata.checked_at
             if timedelta(0) <= age < self._min_poll_interval:
                 return _payload_from_cache(cached)
@@ -115,6 +120,7 @@ class CachedDocumentTransport:
             result = self._http_get(self._url, headers, self._timeout_seconds)
         except (OSError, URLError) as error:
             if cached is not None:
+                self._defer_retry(cached, now, None)
                 return _payload_from_cache(cached)
             raise self._error("request failed") from error
 
@@ -129,6 +135,7 @@ class CachedDocumentTransport:
                     _header(result.headers, "last-modified")
                     or cached.metadata.last_modified
                 ),
+                retry_not_before=None,
             )
             self._write_cache(cached.text, metadata)
             return CachedDocumentPayload(
@@ -139,6 +146,7 @@ class CachedDocumentTransport:
 
         if result.status != 200:
             if cached is not None and _is_transient_status(result.status):
+                self._defer_retry(cached, now, result.headers)
                 return _payload_from_cache(cached)
             raise self._error(f"returned HTTP {result.status}")
 
@@ -161,9 +169,30 @@ class CachedDocumentTransport:
             retrieved_at=now,
             etag=_header(result.headers, "etag"),
             last_modified=_header(result.headers, "last-modified"),
+            retry_not_before=None,
         )
         self._write_cache(text, metadata)
         return CachedDocumentPayload(text=text, retrieved_at=now, from_cache=False)
+
+    def _defer_retry(
+        self,
+        cached: _CachedDocument,
+        now: datetime,
+        headers: Mapping[str, str] | None,
+    ) -> None:
+        retry_not_before = now + self._min_poll_interval
+        if headers is not None:
+            retry_after = _retry_after(headers, now)
+            if retry_after is not None:
+                retry_not_before = max(retry_not_before, retry_after)
+        metadata = _CacheMetadata(
+            checked_at=now,
+            retrieved_at=cached.metadata.retrieved_at,
+            etag=cached.metadata.etag,
+            last_modified=cached.metadata.last_modified,
+            retry_not_before=retry_not_before,
+        )
+        self._write_cache(cached.text, metadata)
 
     def _read_cache(self) -> _CachedDocument | None:
         document_path = self._cache_dir / self._document_filename
@@ -193,6 +222,11 @@ class CachedDocumentTransport:
             "retrieved_at": metadata.retrieved_at.isoformat(),
             "etag": metadata.etag,
             "last_modified": metadata.last_modified,
+            "retry_not_before": (
+                metadata.retry_not_before.isoformat()
+                if metadata.retry_not_before is not None
+                else None
+            ),
         }
         try:
             document_tmp.write_text(text, encoding="utf-8", newline="\n")
@@ -240,6 +274,9 @@ def _parse_metadata(value: object) -> _CacheMetadata:
         retrieved_at=_metadata_datetime(value, "retrieved_at"),
         etag=_optional_string(value.get("etag"), "etag"),
         last_modified=_optional_string(value.get("last_modified"), "last_modified"),
+        retry_not_before=_optional_datetime(
+            value.get("retry_not_before"), "retry_not_before"
+        ),
     )
 
 
@@ -260,6 +297,18 @@ def _optional_string(value: object, name: str) -> str | None:
     if not isinstance(value, str):
         raise ValueError(f"cache {name} must be a string or null")
     return value
+
+
+def _optional_datetime(value: object, name: str) -> datetime | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"cache {name} must be a string or null")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as error:
+        raise ValueError(f"cache {name} must be ISO 8601") from error
+    return _utc_time(parsed, f"cache {name}")
 
 
 def _utc_time(value: datetime, name: str) -> datetime:
@@ -297,3 +346,22 @@ def _normalize_newlines(value: str) -> str:
 
 def _is_transient_status(status: int) -> bool:
     return status in {408, 425, 429} or status >= 500
+
+
+def _retry_after(headers: Mapping[str, str], now: datetime) -> datetime | None:
+    value = _header(headers, "retry-after")
+    if value is None:
+        return None
+    try:
+        delay_seconds = int(value)
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if retry_at.tzinfo is None or retry_at.utcoffset() is None:
+            return None
+        return retry_at.astimezone(UTC)
+    if delay_seconds < 0:
+        return None
+    return now + timedelta(seconds=delay_seconds)

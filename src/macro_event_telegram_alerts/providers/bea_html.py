@@ -165,8 +165,6 @@ class _BeaScheduleHtmlParser(HTMLParser):
         release_date = _normalized_text(self.current_row.release_date_parts)
         release_time = _normalized_text(self.current_row.release_time_parts)
         title = _normalized_text(self.current_row.title_parts)
-        if not release_date:
-            raise BeaScheduleParseError("BEA schedule row has no release date")
         if not title:
             raise BeaScheduleParseError("BEA schedule row has no release title")
         if len(self.current_row.hrefs) > 1:

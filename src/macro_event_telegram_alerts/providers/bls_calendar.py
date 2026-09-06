@@ -118,6 +118,10 @@ def _normalize_event(
     if rule is None:
         return None
 
+    status = event.optional_one("STATUS")
+    if status is not None and status.value.strip().casefold() == "cancelled":
+        return None
+
     uid = event.require_one("UID").value.strip()
     if not uid:
         raise BlsCalendarError(f"{rule.family.value} has an empty UID")

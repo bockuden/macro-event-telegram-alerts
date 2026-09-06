@@ -233,11 +233,19 @@ def _decision_date(row: FomcMeetingRow) -> date:
             f"unsupported FOMC month label: {row.month_label}"
         ) from error
     try:
-        return date(row.year, decision_month, int(match.group(2)))
+        start_day = int(match.group(1))
+        decision_day = int(match.group(2))
+        start_date = date(row.year, decision_month, start_day)
+        decision_date = date(row.year, decision_month, decision_day)
     except ValueError as error:
         raise FomcCalendarError(
             f"invalid FOMC decision date: {row.date_label}"
         ) from error
+    if start_date >= decision_date:
+        raise FomcCalendarError(
+            f"FOMC meeting dates must be chronological: {row.date_label}"
+        )
+    return decision_date
 
 
 def _statement_url(meeting: _RegularMeeting, retrieved_date: date) -> str:

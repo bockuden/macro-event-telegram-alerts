@@ -131,6 +131,24 @@ def test_transport_uses_stale_cache_when_rate_limited(tmp_path: Path) -> None:
     assert payload.retrieved_at == now
 
 
+def test_rate_limit_defers_retries_until_retry_after(tmp_path: Path) -> None:
+    now = datetime(2026, 8, 30, 12, tzinfo=UTC)
+    clock = _Clock(now)
+    http = _FakeHttp(
+        [
+            _ok_result(),
+            HttpResult(status=429, body=b"", headers={"Retry-After": "3600"}),
+        ]
+    )
+    transport = _transport(tmp_path, clock, http)
+    transport.fetch()
+    clock.current += timedelta(days=1)
+
+    assert transport.fetch().from_cache is True
+    assert transport.fetch().from_cache is True
+    assert len(http.calls) == 2
+
+
 def test_transport_requires_contact_information(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="must include"):
         BeaScheduleTransport(

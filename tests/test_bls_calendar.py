@@ -75,6 +75,20 @@ END:VCALENDAR
     assert parse_bls_calendar(calendar, RETRIEVED_AT) == ()
 
 
+def test_cancelled_selected_event_is_not_emitted() -> None:
+    calendar = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:cancelled-cpi
+DTSTART:20260911T083000
+STATUS:CANCELLED
+SUMMARY:Consumer Price Index
+END:VEVENT
+END:VCALENDAR
+"""
+
+    assert parse_bls_calendar(calendar, RETRIEVED_AT) == ()
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [

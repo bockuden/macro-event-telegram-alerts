@@ -105,3 +105,10 @@ def test_source_link_date_must_match_decision_date() -> None:
 
     with pytest.raises(FomcCalendarError, match="date does not match"):
         _events(changed)
+
+
+def test_invalid_first_meeting_day_is_rejected() -> None:
+    changed = _fixture().replace("15-16*", "99-16*", 1)
+
+    with pytest.raises(FomcCalendarError, match="invalid FOMC decision date"):
+        _events(changed)
