@@ -9,8 +9,9 @@
 Reliable Telegram reminders before significant macroeconomic events, built from
 public schedules published by the institutions that produce the releases.
 
-> **Status:** BLS, BEA, and scheduled FOMC ingestion is implemented; reminder
-> delivery and the Telegram bot are not released yet.
+> **Status:** BLS, BEA, and scheduled FOMC ingestion plus durable reminder and
+> Telegram delivery components are implemented. The runnable service and its
+> configuration are still pending.
 
 The project will turn a curated set of official release calendars into timely,
 deduplicated Telegram notifications. It is intended for traders, researchers,
@@ -139,6 +140,7 @@ Notifications are calendar reminders, not trading signals or financial advice.
 - [BLS adapter source and retrieval policy](docs/bls-adapter.md)
 - [BEA adapter source and retrieval policy](docs/bea-adapter.md)
 - [Scheduled FOMC adapter policy](docs/fomc-adapter.md)
+- [Telegram delivery and dry-run](docs/telegram-delivery.md)
 - [Official source catalog](docs/source-catalog.md)
 - [Roadmap](docs/roadmap.md)
 - [ADR 0001: official-source portfolio](docs/adr/0001-official-source-portfolio.md)

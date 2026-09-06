@@ -11,6 +11,7 @@ from macro_event_telegram_alerts import (
     TimingPrecision,
 )
 from macro_event_telegram_alerts.delivery_ledger import DeliveryStatus, ReminderLedger
+from macro_event_telegram_alerts.notifications import DryRunNotifier
 from macro_event_telegram_alerts.reminder_service import ReminderService
 from macro_event_telegram_alerts.reminders import ReminderPolicy
 
@@ -99,6 +100,21 @@ def test_tba_event_never_enters_the_delivery_ledger(tmp_path: Path) -> None:
 
     assert result.delivered == ()
     assert delivered == []
+
+
+def test_service_can_deliver_to_a_credential_free_dry_run_sink(tmp_path: Path) -> None:
+    messages: list[str] = []
+    notifier = DryRunNotifier(messages.append)
+
+    result = _service(tmp_path / "state.sqlite3").run(
+        [_event()],
+        datetime(2026, 9, 15, 12, 20, tzinfo=UTC),
+        notifier.deliver,
+    )
+
+    assert len(result.delivered) == 1
+    assert len(messages) == 1
+    assert "Consumer Price Index" in messages[0]
 
 
 def _raise_transport_error() -> None:
