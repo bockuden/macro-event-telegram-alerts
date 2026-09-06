@@ -1,0 +1,16 @@
+.env
+config.toml
+.git
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+__pycache__
+*.py[cod]
+data
+state
+tests
+docs
+*.egg-info
+build
+dist

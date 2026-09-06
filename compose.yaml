@@ -1,0 +1,18 @@
+services:
+  macro-event-telegram-alerts:
+    build:
+      context: .
+    image: macro-event-telegram-alerts:local
+    env_file:
+      - .env
+    init: true
+    read_only: true
+    restart: unless-stopped
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+      - macro_event_state:/app/state
+
+volumes:
+  macro_event_state:

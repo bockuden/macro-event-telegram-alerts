@@ -196,6 +196,7 @@ Notifications are calendar reminders, not trading signals or financial advice.
 - [Scheduled FOMC adapter policy](docs/fomc-adapter.md)
 - [Telegram delivery and dry-run](docs/telegram-delivery.md)
 - [Runnable application configuration](docs/application-configuration.md)
+- [Docker Compose operation](docs/docker.md)
 - [Official source catalog](docs/source-catalog.md)
 - [Roadmap](docs/roadmap.md)
 - [ADR 0001: official-source portfolio](docs/adr/0001-official-source-portfolio.md)
