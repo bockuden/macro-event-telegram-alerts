@@ -27,6 +27,9 @@ dev = [
 Homepage = "https://github.com/bockuden/macro-event-telegram-alerts"
 Issues = "https://github.com/bockuden/macro-event-telegram-alerts/issues"
 
+[project.scripts]
+macro-event-telegram-alerts = "macro_event_telegram_alerts.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

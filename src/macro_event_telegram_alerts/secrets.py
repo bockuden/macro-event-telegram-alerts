@@ -31,12 +31,16 @@ def load_dotenv(path: Path, environment: MutableMapping[str, str]) -> None:
         environment.setdefault(name, _unquote(value.strip()))
 
 
-def resolve_telegram_token(config: TelegramConfig | None) -> str:
+def resolve_telegram_token(
+    config: TelegramConfig | None,
+    environment: MutableMapping[str, str] | None = None,
+) -> str:
     """Read a configured token only when live Telegram delivery is requested."""
     if config is None:
         raise ConfigError("telegram configuration is required for run")
+    environment = environment if environment is not None else os.environ
     if config.token_env is not None:
-        token = os.environ.get(config.token_env, "")
+        token = environment.get(config.token_env, "")
     else:
         assert config.token_file is not None
         try:

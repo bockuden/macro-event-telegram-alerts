@@ -80,6 +80,58 @@ Linux:
 These commands use only local fixtures and require no production integration
 or secret.
 
+## Run the application
+
+The application reads a non-secret `config.toml` and can run on Windows or
+Linux. Copy the tracked examples once, then edit only your local copies.
+
+Windows PowerShell:
+
+```powershell
+Copy-Item config.example.toml config.toml
+Copy-Item .env.example .env
+notepad .env
+```
+
+Linux:
+
+```bash
+cp config.example.toml config.toml
+cp .env.example .env
+${EDITOR:-vi} .env
+```
+
+Put the token on the right side of this one line in the local `.env` file:
+
+```text
+MACRO_EVENT_TELEGRAM_BOT_TOKEN=your-token-from-BotFather
+```
+
+`.env` is already excluded from Git. Do not add a token to `config.toml`, issue
+comments, terminal screenshots, or commits. Set `chat_id` in `config.toml` only
+when you are ready for live delivery. A token file referenced by `token_file`
+is also supported for deployment environments.
+
+Validate configuration without loading calendars or contacting Telegram:
+
+```bash
+python -m macro_event_telegram_alerts check-config --config config.toml
+```
+
+Inspect due messages locally without `chat_id` or a token:
+
+```bash
+python -m macro_event_telegram_alerts dry-run --config config.toml
+```
+
+Run one live service loop for a deliberate check, or omit `--once` for the
+continuous service. `Ctrl+C` stops it gracefully.
+
+```bash
+python -m macro_event_telegram_alerts run --once --config config.toml
+python -m macro_event_telegram_alerts run --config config.toml
+```
+
 ## Implemented official-source ingestion
 
 The BLS adapter reads only the official, credential-free BLS iCalendar feed and
@@ -141,6 +193,7 @@ Notifications are calendar reminders, not trading signals or financial advice.
 - [BEA adapter source and retrieval policy](docs/bea-adapter.md)
 - [Scheduled FOMC adapter policy](docs/fomc-adapter.md)
 - [Telegram delivery and dry-run](docs/telegram-delivery.md)
+- [Runnable application configuration](docs/application-configuration.md)
 - [Official source catalog](docs/source-catalog.md)
 - [Roadmap](docs/roadmap.md)
 - [ADR 0001: official-source portfolio](docs/adr/0001-official-source-portfolio.md)
