@@ -9,7 +9,6 @@ loop_interval_seconds = 60
 reminder_lead_minutes = [1440, 60, 15]
 
 [telegram]
-# `chat_id` can be a numeric personal/group/channel ID or an @channelusername.
-chat_id = 123456789
-# Keep the token outside this file. The application reads the named environment variable.
+# Keep both recipient and token outside this file. The application reads these names.
+chat_id_env = "MACRO_EVENT_TELEGRAM_CHAT_ID"
 token_env = "MACRO_EVENT_TELEGRAM_BOT_TOKEN"

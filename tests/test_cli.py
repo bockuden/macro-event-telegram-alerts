@@ -28,7 +28,7 @@ def _config(tmp_path: Path, *, telegram: bool = False) -> Path:
     telegram_section = (
         """
 [telegram]
-chat_id = 42
+chat_id_env = "MACRO_EVENT_TELEGRAM_CHAT_ID"
 token_env = "MACRO_EVENT_TELEGRAM_BOT_TOKEN"
 """
         if telegram
@@ -85,7 +85,7 @@ def test_run_rejects_missing_token_before_building_sources(tmp_path: Path) -> No
     result = main(
         ["run", "--once", "--config", str(_config(tmp_path, telegram=True))],
         runner_builder=lambda config, clock: (_ for _ in ()).throw(AssertionError()),
-        environment={},
+        environment={"MACRO_EVENT_TELEGRAM_CHAT_ID": "42"},
         output=StringIO(),
         error_output=errors,
     )

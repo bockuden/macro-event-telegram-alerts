@@ -19,7 +19,10 @@ from macro_event_telegram_alerts.app_runtime import (
 )
 from macro_event_telegram_alerts.notifications import DryRunNotifier
 from macro_event_telegram_alerts.reminders import Reminder
-from macro_event_telegram_alerts.secrets import load_dotenv, resolve_telegram_token
+from macro_event_telegram_alerts.secrets import (
+    load_dotenv,
+    resolve_telegram_credentials,
+)
 from macro_event_telegram_alerts.telegram_notifier import TelegramNotifier
 
 
@@ -68,9 +71,8 @@ def main(
             )
         else:
             load_dotenv(parsed.config.parent / ".env", environment)
-            token = resolve_telegram_token(config.telegram, environment)
-            assert config.telegram is not None
-            notifier = TelegramNotifier(token, config.telegram.chat_id)
+            credentials = resolve_telegram_credentials(config.telegram, environment)
+            notifier = TelegramNotifier(credentials.token, credentials.chat_id)
         runner = runner_builder(config, clock=utc_now)
         if parsed.command == "dry-run" or parsed.once:
             result = runner.run_once(utc_now(), notifier.deliver)

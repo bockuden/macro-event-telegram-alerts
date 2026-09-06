@@ -105,12 +105,14 @@ Put the token on the right side of this one line in the local `.env` file:
 
 ```text
 MACRO_EVENT_TELEGRAM_BOT_TOKEN=your-token-from-BotFather
+MACRO_EVENT_TELEGRAM_CHAT_ID=your-personal-or-group-chat-id
 ```
 
 `.env` is already excluded from Git. Do not add a token to `config.toml`, issue
-comments, terminal screenshots, or commits. Set `chat_id` in `config.toml` only
-when you are ready for live delivery. A token file referenced by `token_file`
-is also supported for deployment environments.
+comments, terminal screenshots, or commits. Both the bot token and recipient
+chat ID are loaded from `.env`; `config.toml` keeps only their variable names.
+A token file referenced by `token_file` is also supported for deployment
+environments.
 
 Validate configuration without loading calendars or contacting Telegram:
 
@@ -118,7 +120,7 @@ Validate configuration without loading calendars or contacting Telegram:
 python -m macro_event_telegram_alerts check-config --config config.toml
 ```
 
-Inspect due messages locally without `chat_id` or a token:
+Inspect due messages locally without a chat ID or token:
 
 ```bash
 python -m macro_event_telegram_alerts dry-run --config config.toml

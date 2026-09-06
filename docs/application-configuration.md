@@ -20,6 +20,7 @@ Copy `.env.example` to a local `.env` next to `config.toml`, then set:
 
 ```text
 MACRO_EVENT_TELEGRAM_BOT_TOKEN=your-token-from-BotFather
+MACRO_EVENT_TELEGRAM_CHAT_ID=your-personal-or-group-chat-id
 ```
 
 The tracked `.gitignore` excludes `.env`; only `.env.example` is committed.
@@ -28,8 +29,8 @@ Existing operating-system environment variables take precedence over values in
 `telegram.token_env` and mount or otherwise provide that file outside Git.
 
 The token and chat ID are never written to application diagnostics. A missing
-token stops `run` before source loading begins. The bot token must not be placed
-in `config.toml`.
+token or chat ID stops `run` before source loading begins. Neither value belongs
+in `config.toml`; it stores only the environment-variable names.
 
 ## Source failures and shutdown
 

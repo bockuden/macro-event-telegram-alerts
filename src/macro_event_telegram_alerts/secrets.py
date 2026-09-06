@@ -7,6 +7,14 @@ from pathlib import Path
 from macro_event_telegram_alerts.app_config import ConfigError, TelegramConfig
 
 
+class TelegramCredentials:
+    """Live-delivery values read only from local secret locations."""
+
+    def __init__(self, token: str, chat_id: str) -> None:
+        self.token = token
+        self.chat_id = chat_id
+
+
 def load_dotenv(path: Path, environment: MutableMapping[str, str]) -> None:
     """Load simple KEY=VALUE entries without overwriting existing variables."""
     if not path.exists():
@@ -50,6 +58,20 @@ def resolve_telegram_token(
     if not token.strip():
         raise ConfigError("Telegram bot token is missing")
     return token
+
+
+def resolve_telegram_credentials(
+    config: TelegramConfig | None,
+    environment: MutableMapping[str, str] | None = None,
+) -> TelegramCredentials:
+    """Resolve both live-delivery values without putting either in TOML."""
+    environment = environment if environment is not None else os.environ
+    if config is None:
+        raise ConfigError("telegram configuration is required for run")
+    chat_id = environment.get(config.chat_id_env, "").strip()
+    if not chat_id:
+        raise ConfigError("Telegram chat ID is missing")
+    return TelegramCredentials(resolve_telegram_token(config, environment), chat_id)
 
 
 def _unquote(value: str) -> str:

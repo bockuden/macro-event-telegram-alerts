@@ -24,9 +24,9 @@ class SourceName(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class TelegramConfig:
-    """Recipient and token location, without retaining a token value."""
+    """Telegram environment-variable names and optional token-file location."""
 
-    chat_id: int | str
+    chat_id_env: str
     token_env: str | None
     token_file: Path | None
 
@@ -172,12 +172,14 @@ def _telegram_config(value: object, base_dir: Path) -> TelegramConfig | None:
     if value is None:
         return None
     telegram = _table(value, "telegram")
-    _reject_unknown_keys(telegram, {"chat_id", "token_env", "token_file"}, "telegram")
-    chat_id = telegram.get("chat_id")
-    if not isinstance(chat_id, int) and not (
-        isinstance(chat_id, str) and chat_id.strip()
-    ):
-        raise ConfigError("telegram.chat_id must be a non-empty string or integer")
+    _reject_unknown_keys(
+        telegram, {"chat_id_env", "token_env", "token_file"}, "telegram"
+    )
+    chat_id_env = _string(
+        _required(telegram, "chat_id_env", "telegram"), "telegram.chat_id_env"
+    )
+    if not chat_id_env.strip():
+        raise ConfigError("telegram.chat_id_env must not be empty")
     token_env = telegram.get("token_env")
     token_file = telegram.get("token_file")
     if token_env is not None and token_file is not None:
@@ -193,7 +195,7 @@ def _telegram_config(value: object, base_dir: Path) -> TelegramConfig | None:
     )
     if token_env is None and resolved_token_file is None:
         raise ConfigError("telegram must specify token_env or token_file")
-    return TelegramConfig(chat_id, token_env, resolved_token_file)
+    return TelegramConfig(chat_id_env, token_env, resolved_token_file)
 
 
 def _path_from_section(value: object, base_dir: Path, name: str) -> Path:

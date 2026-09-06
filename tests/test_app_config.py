@@ -56,14 +56,14 @@ source_poll_interval_minutes = 360
 loop_interval_seconds = 60
 
 [telegram]
-chat_id = -1001234567890
+chat_id_env = "MACRO_EVENT_TELEGRAM_CHAT_ID"
 token_file = "secrets/bot-token"
 """,
         )
     )
 
     assert config.telegram is not None
-    assert config.telegram.chat_id == -1001234567890
+    assert config.telegram.chat_id_env == "MACRO_EVENT_TELEGRAM_CHAT_ID"
     assert config.telegram.token_file == tmp_path / "secrets" / "bot-token"
     assert config.telegram.token_env is None
 
@@ -107,7 +107,7 @@ source_poll_interval_minutes = 360
 loop_interval_seconds = 60
 
 [telegram]
-chat_id = 42
+chat_id_env = "MACRO_EVENT_TELEGRAM_CHAT_ID"
 token = "do-not-store-me"
 """,
     )
