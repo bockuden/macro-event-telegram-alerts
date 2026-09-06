@@ -1,4 +1,5 @@
 .env
+config.toml
 .venv/
 __pycache__/
 *.py[cod]
@@ -11,4 +12,3 @@ htmlcov/
 build/
 dist/
 data/
-
