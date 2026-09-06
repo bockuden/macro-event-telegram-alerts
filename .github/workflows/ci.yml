@@ -35,3 +35,11 @@ jobs:
 
       - name: Run pytest
         run: .venv/bin/python -m pytest
+
+      - name: Build container image
+        run: docker build --tag macro-event-telegram-alerts:ci .
+
+      - name: Run container smoke test
+        run: |
+          docker image inspect macro-event-telegram-alerts:ci --format '{{.Config.User}}' | grep -Fx app
+          docker run --rm macro-event-telegram-alerts:ci check-config --config /app/config.example.toml
