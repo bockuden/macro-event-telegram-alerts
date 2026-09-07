@@ -10,9 +10,9 @@ ghcr.io/bockuden/macro-event-telegram-alerts
 
 The workflow uses its repository-scoped `GITHUB_TOKEN`; no personal access
 token or registry credential is stored in this repository. It attaches OCI
-source, version, revision, description, and MIT license metadata, makes the
-linked package public, and verifies an anonymous pull plus a container smoke
-test.
+source, version, revision, description, and MIT license metadata, then verifies
+an anonymous pull plus a container smoke test. The repository owner configures
+the linked package as public once; that visibility persists for later releases.
 
 ## Use a released image
 
