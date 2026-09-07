@@ -9,9 +9,9 @@
 Reliable Telegram reminders before significant macroeconomic events, built from
 public schedules published by the institutions that produce the releases.
 
-> **Status:** BLS, BEA, and scheduled FOMC ingestion plus durable reminder and
-> Telegram delivery components are implemented. The runnable service and its
-> configuration are still pending.
+> **Status:** BLS, BEA, and scheduled FOMC ingestion, durable reminder and
+> Telegram delivery, runnable configuration, and Docker Compose are implemented.
+> Release images are published when a version tag is created.
 
 The project will turn a curated set of official release calendars into timely,
 deduplicated Telegram notifications. It is intended for traders, researchers,
@@ -197,6 +197,7 @@ Notifications are calendar reminders, not trading signals or financial advice.
 - [Telegram delivery and dry-run](docs/telegram-delivery.md)
 - [Runnable application configuration](docs/application-configuration.md)
 - [Docker Compose operation](docs/docker.md)
+- [GitHub Container Registry releases](docs/ghcr.md)
 - [Official source catalog](docs/source-catalog.md)
 - [Roadmap](docs/roadmap.md)
 - [ADR 0001: official-source portfolio](docs/adr/0001-official-source-portfolio.md)
