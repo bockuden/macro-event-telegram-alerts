@@ -3,6 +3,12 @@
 This catalog is the review gate for live adapters. A source is not eligible for
 release merely because its page is publicly accessible.
 
+## Shipped live adapters
+
+Version 0.1 ships exactly the three adapters documented below: BLS, BEA, and
+the Federal Reserve Board FOMC calendar. Fixture providers are test-only and no
+other live calendar provider is included in the runnable application.
+
 ## U.S. Bureau of Labor Statistics
 
 - **Implemented events:** CPI, Employment Situation, PPI, JOLTS

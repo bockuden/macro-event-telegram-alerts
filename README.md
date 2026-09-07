@@ -134,6 +134,20 @@ python -m macro_event_telegram_alerts run --once --config config.toml
 python -m macro_event_telegram_alerts run --config config.toml
 ```
 
+## Troubleshooting
+
+Start with `check-config` when the application rejects configuration, then use
+`dry-run` before troubleshooting a live Telegram delivery. In Docker, use
+`docker compose ps` and `docker compose logs --tail=100
+macro-event-telegram-alerts`; these logs deliberately exclude tokens, chat IDs,
+notification text, and Telegram request URLs.
+
+Network failures, rate limits, and Telegram server errors are retried on the
+next loop. Invalid credentials and other permanent Telegram client errors are
+recorded once and require a local configuration correction. See
+[operations and troubleshooting](docs/operations.md) for the complete retry
+policy, recovery steps, and the safe procedure to reset state.
+
 ## Implemented official-source ingestion
 
 The BLS adapter reads only the official, credential-free BLS iCalendar feed and
@@ -197,8 +211,11 @@ Notifications are calendar reminders, not trading signals or financial advice.
 - [Telegram delivery and dry-run](docs/telegram-delivery.md)
 - [Runnable application configuration](docs/application-configuration.md)
 - [Docker Compose operation](docs/docker.md)
+- [Operations and troubleshooting](docs/operations.md)
 - [GitHub Container Registry releases](docs/ghcr.md)
 - [Official source catalog](docs/source-catalog.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 - [Roadmap](docs/roadmap.md)
 - [ADR 0001: official-source portfolio](docs/adr/0001-official-source-portfolio.md)
 
