@@ -92,3 +92,31 @@ def test_failure_never_includes_token_or_chat_id() -> None:
 
     assert token not in str(caught.value)
     assert chat_id not in str(caught.value)
+    assert not caught.value.retryable
+
+
+@pytest.mark.parametrize("status", [408, 429, 500, 503])
+def test_transient_http_failures_are_retryable(status: int) -> None:
+    notifier = TelegramNotifier(
+        "123456:secret-token",
+        42,
+        http_post=_FakeHttp(HttpResponse(status, b"", {})),
+    )
+
+    with pytest.raises(TelegramDeliveryError) as caught:
+        notifier.deliver(_reminder())
+
+    assert caught.value.retryable
+
+
+def test_permanent_http_failure_is_not_retryable() -> None:
+    notifier = TelegramNotifier(
+        "123456:secret-token",
+        42,
+        http_post=_FakeHttp(HttpResponse(401, b"", {})),
+    )
+
+    with pytest.raises(TelegramDeliveryError) as caught:
+        notifier.deliver(_reminder())
+
+    assert not caught.value.retryable

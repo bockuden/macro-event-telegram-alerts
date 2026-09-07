@@ -36,6 +36,7 @@ class DeliveryRecord:
     lease_expires_at: datetime | None
     delivered_at: datetime | None
     failure_reason: str | None
+    retryable: bool
 
 
 class ReminderLedger:
@@ -64,7 +65,7 @@ class ReminderLedger:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 """
-                SELECT status, lease_expires_at
+                SELECT status, lease_expires_at, retryable
                 FROM reminder_deliveries
                 WHERE source_id = ? AND occurrence_at_utc = ? AND lead_seconds = ?
                 """,
@@ -74,6 +75,8 @@ class ReminderLedger:
                 status = DeliveryStatus(row["status"])
                 lease_expires = _from_database_time(row["lease_expires_at"])
                 if status is DeliveryStatus.SENT:
+                    return None
+                if status is DeliveryStatus.FAILED and not bool(row["retryable"]):
                     return None
                 if (
                     status is DeliveryStatus.IN_FLIGHT
@@ -87,15 +90,16 @@ class ReminderLedger:
                 INSERT INTO reminder_deliveries (
                     source_id, occurrence_at_utc, lead_seconds, status, attempts,
                     attempt_id, claimed_at, lease_expires_at, delivered_at,
-                    failure_reason
-                ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, NULL, NULL)
+                    failure_reason, retryable
+                ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, NULL, NULL, 1)
                 ON CONFLICT(source_id, occurrence_at_utc, lead_seconds) DO UPDATE SET
                     status = excluded.status,
                     attempts = reminder_deliveries.attempts + 1,
                     attempt_id = excluded.attempt_id,
                     claimed_at = excluded.claimed_at,
                     lease_expires_at = excluded.lease_expires_at,
-                    failure_reason = NULL
+                    failure_reason = NULL,
+                    retryable = 1
                 """,
                 (
                     *identity,
@@ -116,11 +120,19 @@ class ReminderLedger:
         lease: DeliveryLease,
         failed_at: datetime,
         reason: str,
+        *,
+        retryable: bool,
     ) -> None:
         """Record a failed attempt so a later service loop can retry it."""
         if not reason.strip():
             raise ValueError("failure reason must not be empty")
-        self._complete(lease, failed_at, DeliveryStatus.FAILED, reason)
+        self._complete(
+            lease,
+            failed_at,
+            DeliveryStatus.FAILED,
+            reason,
+            retryable=retryable,
+        )
 
     def record_for(self, reminder: Reminder) -> DeliveryRecord | None:
         """Return durable state for a reminder identity, if it exists."""
@@ -128,7 +140,7 @@ class ReminderLedger:
             row = connection.execute(
                 """
                 SELECT status, attempts, claimed_at, lease_expires_at, delivered_at,
-                       failure_reason
+                       failure_reason, retryable
                 FROM reminder_deliveries
                 WHERE source_id = ? AND occurrence_at_utc = ? AND lead_seconds = ?
                 """,
@@ -143,6 +155,7 @@ class ReminderLedger:
             lease_expires_at=_from_database_time(row["lease_expires_at"]),
             delivered_at=_from_database_time(row["delivered_at"]),
             failure_reason=row["failure_reason"],
+            retryable=bool(row["retryable"]),
         )
 
     def _complete(
@@ -151,6 +164,8 @@ class ReminderLedger:
         completed_at: datetime,
         status: DeliveryStatus,
         failure_reason: str | None,
+        *,
+        retryable: bool = False,
     ) -> None:
         completed_at_utc = _require_utc(completed_at, "completed_at")
         with self._connection() as connection:
@@ -158,7 +173,7 @@ class ReminderLedger:
                 """
                 UPDATE reminder_deliveries
                 SET status = ?, delivered_at = ?, lease_expires_at = NULL,
-                    failure_reason = ?
+                    failure_reason = ?, retryable = ?
                 WHERE source_id = ? AND occurrence_at_utc = ? AND lead_seconds = ?
                     AND status = ? AND attempt_id = ?
                 """,
@@ -168,6 +183,7 @@ class ReminderLedger:
                     if status is DeliveryStatus.SENT
                     else None,
                     failure_reason,
+                    int(retryable),
                     *_identity(lease.reminder),
                     DeliveryStatus.IN_FLIGHT.value,
                     lease.attempt_id,
@@ -194,10 +210,21 @@ class ReminderLedger:
                     lease_expires_at TEXT,
                     delivered_at TEXT,
                     failure_reason TEXT,
+                    retryable INTEGER NOT NULL DEFAULT 1 CHECK (retryable IN (0, 1)),
                     PRIMARY KEY (source_id, occurrence_at_utc, lead_seconds)
                 )
                 """
             )
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(reminder_deliveries)")
+            }
+            if "retryable" not in columns:
+                connection.execute(
+                    "ALTER TABLE reminder_deliveries "
+                    "ADD COLUMN retryable INTEGER NOT NULL DEFAULT 1 "
+                    "CHECK (retryable IN (0, 1))"
+                )
 
     def _connection(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)

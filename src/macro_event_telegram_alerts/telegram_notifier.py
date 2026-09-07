@@ -1,11 +1,13 @@
 """Minimal Telegram Bot API notifier with secret-safe failures."""
 
 import json
+import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from macro_event_telegram_alerts.delivery_errors import DeliveryError
 from macro_event_telegram_alerts.notifications import format_reminder_message
 from macro_event_telegram_alerts.reminders import Reminder
 
@@ -14,7 +16,10 @@ DEFAULT_TIMEOUT_SECONDS = 10.0
 MAX_TIMEOUT_SECONDS = 30.0
 
 
-class TelegramDeliveryError(RuntimeError):
+LOGGER = logging.getLogger(__name__)
+
+
+class TelegramDeliveryError(DeliveryError):
     """A reminder could not be confirmed as delivered by Telegram."""
 
 
@@ -76,19 +81,39 @@ class TelegramNotifier:
                 self._timeout_seconds,
             )
         except (OSError, URLError) as error:
-            raise TelegramDeliveryError("Telegram request failed") from error
-        if response.status != 200:
             raise TelegramDeliveryError(
-                f"Telegram returned unexpected HTTP status {response.status}"
+                "Telegram request failed", retryable=True
+            ) from error
+        if response.status != 200:
+            retryable = _is_transient_status(response.status)
+            LOGGER.warning(
+                "Telegram delivery was rejected: status=%s retryable=%s",
+                response.status,
+                retryable,
+            )
+            raise TelegramDeliveryError(
+                f"Telegram returned unexpected HTTP status {response.status}",
+                retryable=retryable,
             )
         try:
             document: object = json.loads(response.body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise TelegramDeliveryError(
-                "Telegram returned an invalid response"
+                "Telegram returned an invalid response", retryable=True
             ) from error
         if not isinstance(document, dict) or document.get("ok") is not True:
-            raise TelegramDeliveryError("Telegram did not confirm message delivery")
+            error_code = (
+                document.get("error_code") if isinstance(document, dict) else None
+            )
+            retryable = isinstance(error_code, int) and _is_transient_status(error_code)
+            LOGGER.warning(
+                "Telegram did not confirm delivery: error_code=%s retryable=%s",
+                error_code if isinstance(error_code, int) else "unknown",
+                retryable,
+            )
+            raise TelegramDeliveryError(
+                "Telegram did not confirm message delivery", retryable=retryable
+            )
 
 
 def _urllib_post(
@@ -111,3 +136,7 @@ def _urllib_post(
             body=error.read(),
             headers=dict(error.headers.items()) if error.headers else {},
         )
+
+
+def _is_transient_status(status: int) -> bool:
+    return status in {408, 425, 429} or status >= 500

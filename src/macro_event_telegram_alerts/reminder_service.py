@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from macro_event_telegram_alerts.delivery_errors import DeliveryError
 from macro_event_telegram_alerts.delivery_ledger import ReminderLedger
 from macro_event_telegram_alerts.domain import MacroEvent
 from macro_event_telegram_alerts.reminders import Reminder, ReminderPolicy
@@ -43,7 +44,15 @@ class ReminderService:
             try:
                 deliver(reminder)
             except Exception as error:
-                self._ledger.mark_failed(lease, now_utc, type(error).__name__)
+                retryable = (
+                    error.retryable if isinstance(error, DeliveryError) else True
+                )
+                self._ledger.mark_failed(
+                    lease,
+                    now_utc,
+                    type(error).__name__,
+                    retryable=retryable,
+                )
                 failed.append(reminder)
             else:
                 self._ledger.mark_sent(lease, now_utc)

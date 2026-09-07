@@ -54,7 +54,7 @@ def test_failed_delivery_can_be_claimed_again(tmp_path: Path) -> None:
     first = ledger.claim(reminder, now)
 
     assert first is not None
-    ledger.mark_failed(first, now, "temporary transport failure")
+    ledger.mark_failed(first, now, "temporary transport failure", retryable=True)
     second = ledger.claim(reminder, now + timedelta(minutes=1))
 
     assert second is not None
