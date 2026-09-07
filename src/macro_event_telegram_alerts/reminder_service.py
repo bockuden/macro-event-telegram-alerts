@@ -1,5 +1,6 @@
 """Coordinate due reminder selection with durable delivery claims."""
 
+import logging
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -10,6 +11,9 @@ from macro_event_telegram_alerts.domain import MacroEvent
 from macro_event_telegram_alerts.reminders import Reminder, ReminderPolicy
 
 type DeliverReminder = Callable[[Reminder], None]
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,9 +57,22 @@ class ReminderService:
                     type(error).__name__,
                     retryable=retryable,
                 )
+                LOGGER.warning(
+                    "Reminder delivery failed: source_id=%s lead_seconds=%s "
+                    "error_type=%s retryable=%s",
+                    reminder.event.source_id,
+                    reminder.lead_seconds,
+                    type(error).__name__,
+                    retryable,
+                )
                 failed.append(reminder)
             else:
                 self._ledger.mark_sent(lease, now_utc)
+                LOGGER.info(
+                    "Reminder delivered: source_id=%s lead_seconds=%s",
+                    reminder.event.source_id,
+                    reminder.lead_seconds,
+                )
                 delivered.append(reminder)
         return ReminderRunResult(tuple(delivered), tuple(failed))
 

@@ -1,5 +1,6 @@
 """Source assembly and one-loop application orchestration."""
 
+import logging
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -25,6 +26,9 @@ type Clock = Callable[[], datetime]
 type DeliverReminder = Callable[[Reminder], None]
 type Sleep = Callable[[float], None]
 type StopRequested = Callable[[], bool]
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class EventProvider(Protocol):
@@ -75,9 +79,21 @@ class ApplicationRunner:
         failures: list[SourceName] = []
         for named_provider in self._providers:
             try:
-                events.extend(named_provider.provider.load())
-            except Exception:
+                source_events = named_provider.provider.load()
+            except Exception as error:
                 failures.append(named_provider.name)
+                LOGGER.warning(
+                    "Official source load failed: source=%s error_type=%s",
+                    named_provider.name.value,
+                    type(error).__name__,
+                )
+            else:
+                events.extend(source_events)
+                LOGGER.info(
+                    "Official source loaded: source=%s event_count=%s",
+                    named_provider.name.value,
+                    len(source_events),
+                )
         reminder_result = self._reminder_service.run(events, now_utc, deliver)
         result = ApplicationRunResult(
             loaded_events=len(events),
@@ -90,6 +106,14 @@ class ApplicationRunner:
             and not result.reminder_result.failed
         ):
             self._health_reporter.record_success(now_utc)
+        LOGGER.info(
+            "Application loop completed: loaded_events=%s failed_sources=%s "
+            "delivered_reminders=%s failed_reminders=%s",
+            result.loaded_events,
+            len(result.failed_sources),
+            len(result.reminder_result.delivered),
+            len(result.reminder_result.failed),
+        )
         return result
 
     def run_until_stopped(

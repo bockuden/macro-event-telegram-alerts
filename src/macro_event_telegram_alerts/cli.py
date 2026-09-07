@@ -1,6 +1,7 @@
 """Command-line entry point for the configured reminder application."""
 
 import argparse
+import logging
 import os
 import signal
 import sys
@@ -56,6 +57,7 @@ def main(
     error_output: TextIO | None = None,
 ) -> int:
     """Run `check-config`, `dry-run`, or live Telegram delivery."""
+    _configure_logging()
     parsed = _parser().parse_args(argv)
     output = output or sys.stdout
     error_output = error_output or sys.stderr
@@ -145,6 +147,13 @@ def _run_forever(
 def _print_result(failed_sources: tuple[SourceName, ...], error_output: TextIO) -> None:
     for source in failed_sources:
         print(f"Source failed during this loop: {source.value}", file=error_output)
+
+
+def _configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
 
 
 if __name__ == "__main__":

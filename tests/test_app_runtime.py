@@ -1,8 +1,11 @@
 """Offline tests for independent-source application orchestration."""
 
+import logging
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+import pytest
 
 from macro_event_telegram_alerts import (
     EventSignificance,
@@ -75,6 +78,25 @@ def test_failed_source_does_not_block_healthy_source(tmp_path: Path) -> None:
     assert result.failed_sources == (SourceName.BLS,)
     assert result.loaded_events == 1
     assert messages == ["Consumer Price Index"]
+
+
+def test_source_failure_log_uses_only_safe_diagnostics(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    secret = "bot-token-that-must-not-appear"
+
+    class _SecretFailingProvider:
+        def load(self) -> tuple[MacroEvent, ...]:
+            raise RuntimeError(secret)
+
+    caplog.set_level(logging.WARNING)
+    _runner(
+        tmp_path, [NamedProvider(SourceName.BLS, _SecretFailingProvider())]
+    ).run_once(datetime(2026, 9, 15, 12, 20, tzinfo=UTC), lambda _: None)
+
+    assert "source=bls" in caplog.text
+    assert "error_type=RuntimeError" in caplog.text
+    assert secret not in caplog.text
 
 
 def test_run_until_stopped_checks_stop_before_sleeping(tmp_path: Path) -> None:
