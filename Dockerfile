@@ -10,6 +10,10 @@ RUN python -m pip install --prefix=/install .
 
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.source="https://github.com/bockuden/macro-event-telegram-alerts" \
+    org.opencontainers.image.description="Reliable Telegram reminders for significant macroeconomic events." \
+    org.opencontainers.image.licenses="MIT"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
