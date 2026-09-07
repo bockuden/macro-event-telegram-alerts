@@ -140,7 +140,7 @@ def build_official_providers(
     config: AppConfig, *, clock: Clock
 ) -> tuple[NamedProvider, ...]:
     """Build configured official-source adapters without fetching their data."""
-    user_agent = "macro-event-telegram-alerts/0.0.0 (+https://github.com/bockuden/macro-event-telegram-alerts)"
+    user_agent = "macro-event-telegram-alerts/0.1.0 (+https://github.com/bockuden/macro-event-telegram-alerts)"
     providers: list[NamedProvider] = []
     for source in config.sources:
         cache_dir = config.cache_dir / source.value

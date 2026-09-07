@@ -1,0 +1,16 @@
+services:
+  macro-event-telegram-alerts:
+    image: ghcr.io/bockuden/macro-event-telegram-alerts:v0.1.0
+    env_file:
+      - .env
+    init: true
+    read_only: true
+    restart: unless-stopped
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+      - macro_event_state:/app/state
+
+volumes:
+  macro_event_state:

@@ -12,7 +12,7 @@ from macro_event_telegram_alerts.telegram_notifier import (
     TelegramNotifier,
 )
 
-__version__ = "0.0.0"
+__version__ = "0.1.0"
 
 __all__ = [
     "DryRunNotifier",

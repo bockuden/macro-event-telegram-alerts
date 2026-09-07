@@ -134,6 +134,57 @@ python -m macro_event_telegram_alerts run --once --config config.toml
 python -m macro_event_telegram_alerts run --config config.toml
 ```
 
+## Deploy on a Linux server with Docker
+
+The release image is public and requires no registry login, paid calendar API,
+or data-provider credential. The only values you supply are your own Telegram
+bot token and the chat ID that should receive reminders. Do not reuse the
+example values or paste either value into GitHub.
+
+Install Docker Engine plus the Docker Compose plugin on the server, then create
+an isolated directory and download the three public release files:
+
+```bash
+mkdir -p ~/macro-event-telegram-alerts
+cd ~/macro-event-telegram-alerts
+curl -fsSLO https://raw.githubusercontent.com/bockuden/macro-event-telegram-alerts/v0.1.0/compose.release.yaml
+curl -fsSLO https://raw.githubusercontent.com/bockuden/macro-event-telegram-alerts/v0.1.0/config.example.toml
+curl -fsSLO https://raw.githubusercontent.com/bockuden/macro-event-telegram-alerts/v0.1.0/.env.example
+cp config.example.toml config.toml
+cp .env.example .env
+chmod 600 .env
+```
+
+Edit only `.env` and insert your values. The bot must already be allowed to
+message that private chat or group.
+
+```bash
+nano .env
+```
+
+```text
+MACRO_EVENT_TELEGRAM_BOT_TOKEN=123456:replace-with-your-BotFather-token
+MACRO_EVENT_TELEGRAM_CHAT_ID=replace-with-your-private-or-group-chat-id
+```
+
+Optionally edit `config.toml` to choose sources, timezone, lead times, or loop
+frequency; it contains names and settings, never secret values. Start the
+version-pinned image, then verify its health and safe logs:
+
+```bash
+docker compose -f compose.release.yaml pull
+docker compose -f compose.release.yaml up -d
+docker compose -f compose.release.yaml ps
+docker compose -f compose.release.yaml logs --tail=100 macro-event-telegram-alerts
+```
+
+The service requires no inbound port or reverse proxy. To stop it without
+forgetting delivery history, run `docker compose -f compose.release.yaml down`.
+Use `down --volumes` only for an intentional reset: it removes the SQLite
+ledger and source cache, so eligible reminders may be sent again. For a newer
+release, replace `v0.1.0` in `compose.release.yaml` only after reading that
+release's notes, then repeat `pull` and `up -d`.
+
 ## Troubleshooting
 
 Start with `check-config` when the application rejects configuration, then use
@@ -211,6 +262,7 @@ Notifications are calendar reminders, not trading signals or financial advice.
 - [Telegram delivery and dry-run](docs/telegram-delivery.md)
 - [Runnable application configuration](docs/application-configuration.md)
 - [Docker Compose operation](docs/docker.md)
+- [Release validation](docs/release-validation.md)
 - [Operations and troubleshooting](docs/operations.md)
 - [GitHub Container Registry releases](docs/ghcr.md)
 - [Official source catalog](docs/source-catalog.md)
