@@ -139,7 +139,9 @@ class CachedDocumentTransport:
         if rejection_cooldown <= timedelta(0):
             raise ValueError("rejection_cooldown must be positive")
         if max_retry_backoff < min_poll_interval:
-            raise ValueError("max_retry_backoff must not be shorter than min_poll_interval")
+            raise ValueError(
+                "max_retry_backoff must not be shorter than min_poll_interval"
+            )
         if max_stale_cache_age <= timedelta(0):
             raise ValueError("max_stale_cache_age must be positive")
 
@@ -172,6 +174,22 @@ class CachedDocumentTransport:
         self._diagnostics = TransportDiagnostics()
         cached = self._read_cache()
         retry_state = self._read_retry_state()
+        if (
+            self._allow_network
+            and retry_state is None
+            and cached is not None
+            and cached.metadata.retry_not_before is not None
+            and now < cached.metadata.retry_not_before
+        ):
+            # Preserve a cooldown written by pre-Issue-14 versions, then let the
+            # sidecar state become the durable source of truth on later attempts.
+            retry_state = _RetryState(
+                not_before=cached.metadata.retry_not_before,
+                category=FailureCategory.UNKNOWN,
+                http_status=None,
+                failure_count=1,
+            )
+            self._write_retry_state(retry_state)
         if cached is not None:
             self._observe_cache(cached, now, retry_state)
         if not self._allow_network:
@@ -359,17 +377,20 @@ class CachedDocumentTransport:
         headers: Mapping[str, str] | None,
         failure_count: int,
     ) -> datetime:
-        if category is FailureCategory.HTTP and _is_transient_status(http_status):
+        if (
+            category is FailureCategory.HTTP
+            and _is_transient_status(http_status)
+        ) or category in {FailureCategory.TIMEOUT, FailureCategory.NETWORK}:
             multiplier = 2 ** min(failure_count - 1, 20)
-            delay = min(self._min_poll_interval * multiplier, self._max_retry_backoff)
-        elif category in {FailureCategory.TIMEOUT, FailureCategory.NETWORK}:
-            multiplier = 2 ** min(failure_count - 1, 20)
-            delay = min(self._min_poll_interval * multiplier, self._max_retry_backoff)
+            delay: timedelta = self._min_poll_interval * multiplier
+            if delay > self._max_retry_backoff:
+                delay = self._max_retry_backoff
         else:
             delay = self._rejection_cooldown
-        retry_at = now + delay
-        if headers is not None and (retry_after := _retry_after(headers, now)) is not None:
-            retry_at = max(retry_at, retry_after)
+        retry_at: datetime = now + delay
+        retry_after = _retry_after(headers, now) if headers is not None else None
+        if retry_after is not None and retry_after > retry_at:
+            retry_at = retry_after
         return retry_at
 
     def _cache_is_acceptable(self, cached: _CachedDocument, now: datetime) -> bool:
@@ -414,7 +435,9 @@ class CachedDocumentTransport:
             raw: object = json.loads(path.read_text(encoding="utf-8"))
             return _parse_retry_state(raw)
         except (OSError, ValueError) as error:
-            raise self._error("retry state is invalid", FailureCategory.CACHE) from error
+            raise self._error(
+                "retry state is invalid", FailureCategory.CACHE
+            ) from error
 
     def _write_retry_state(self, state: _RetryState) -> None:
         path = self._retry_state_path()

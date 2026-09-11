@@ -1,5 +1,6 @@
 """Persistent, source-local cooldown behaviour for official HTTP documents."""
 
+import json
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -52,7 +53,11 @@ def _transport(tmp_path: Path, clock: _Clock, http: _Http) -> BlsCalendarTranspo
 
 
 def _calendar() -> HttpResult:
-    return HttpResult(200, b"BEGIN:VCALENDAR\nEND:VCALENDAR\n", {"Content-Type": "text/calendar"})
+    return HttpResult(
+        200,
+        b"BEGIN:VCALENDAR\nEND:VCALENDAR\n",
+        {"Content-Type": "text/calendar"},
+    )
 
 
 def test_403_without_cache_is_persistently_cooled_down(tmp_path: Path) -> None:
@@ -105,6 +110,32 @@ def test_retry_after_overrides_bounded_temporary_backoff(tmp_path: Path) -> None
     assert http.calls == 2
 
 
+def test_live_fetch_migrates_a_legacy_cache_cooldown(tmp_path: Path) -> None:
+    (tmp_path / "bls.ics").write_text(
+        "BEGIN:VCALENDAR\nEND:VCALENDAR\n", encoding="utf-8"
+    )
+    (tmp_path / "bls-cache.json").write_text(
+        json.dumps(
+            {
+                "checked_at": NOW.isoformat(),
+                "retrieved_at": NOW.isoformat(),
+                "retry_not_before": (NOW + timedelta(hours=1)).isoformat(),
+                "etag": None,
+                "last_modified": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    http = _Http([_calendar()])
+    transport = _transport(tmp_path, _Clock(NOW), http)
+
+    payload = transport.fetch()
+
+    assert payload.from_cache
+    assert http.calls == 0
+    assert (tmp_path / "bls-cache-retry.json").is_file()
+
+
 def test_temporary_failures_back_off_without_masking_old_cache(tmp_path: Path) -> None:
     clock = _Clock(NOW)
     http = _Http([_calendar(), HttpResult(503, b"", {}), HttpResult(503, b"", {})])
@@ -124,7 +155,9 @@ def test_temporary_failures_back_off_without_masking_old_cache(tmp_path: Path) -
     assert http.calls == 3
 
 
-def test_cache_older_than_configured_limit_is_not_used_as_fallback(tmp_path: Path) -> None:
+def test_cache_older_than_configured_limit_is_not_used_as_fallback(
+    tmp_path: Path,
+) -> None:
     clock = _Clock(NOW)
     http = _Http([_calendar(), HttpResult(403, b"", {})])
     transport = _transport(tmp_path, clock, http)
@@ -138,7 +171,9 @@ def test_cache_older_than_configured_limit_is_not_used_as_fallback(tmp_path: Pat
     assert http.calls == 2
 
 
-def test_cooldown_for_one_source_does_not_block_a_healthy_source(tmp_path: Path) -> None:
+def test_cooldown_for_one_source_does_not_block_a_healthy_source(
+    tmp_path: Path,
+) -> None:
     clock = _Clock(NOW)
     denied = _transport(tmp_path / "denied", clock, _Http([HttpResult(403, b"", {})]))
     healthy_http = _Http([_calendar()])
