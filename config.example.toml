@@ -6,6 +6,12 @@ cache_dir = "state/cache"
 ledger_path = "state/reminders.sqlite3"
 health_path = "state/health.json"
 source_poll_interval_minutes = 360
+# A 403/404 or invalid document is retried after this cooldown.
+source_rejection_cooldown_minutes = 360
+# Network failures, 429 and 5xx use exponential backoff up to this limit.
+source_retry_max_backoff_minutes = 1440
+# Never serve a failed source from a cache older than this limit.
+source_max_stale_cache_hours = 168
 loop_interval_seconds = 60
 reminder_lead_minutes = [1440, 60, 15]
 
