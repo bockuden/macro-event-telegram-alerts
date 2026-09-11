@@ -10,6 +10,7 @@ from macro_event_telegram_alerts.providers.cached_http import (
     Clock,
     HttpGet,
     HttpResult,
+    TransportDiagnostics,
 )
 
 BLS_CALENDAR_URL = "https://www.bls.gov/schedule/news_release/bls.ics"
@@ -17,7 +18,7 @@ DEFAULT_MIN_POLL_INTERVAL = timedelta(hours=6)
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
 
-class BlsTransportError(RuntimeError):
+class BlsTransportError(CachedDocumentError):
     """The official BLS calendar could not be retrieved or cached safely."""
 
 
@@ -42,6 +43,7 @@ class BlsCalendarTransport:
         min_poll_interval: timedelta = DEFAULT_MIN_POLL_INTERVAL,
         timeout_seconds: float = 20.0,
         http_get: HttpGet | None = None,
+        allow_network: bool = True,
     ) -> None:
         self._transport = CachedDocumentTransport(
             source_name="BLS calendar",
@@ -57,14 +59,21 @@ class BlsCalendarTransport:
             max_response_bytes=MAX_RESPONSE_BYTES,
             timeout_seconds=timeout_seconds,
             http_get=http_get,
+            allow_network=allow_network,
         )
+
+    def diagnostics(self) -> TransportDiagnostics:
+        """Return the shared transport's safe diagnostics."""
+        return self._transport.diagnostics()
 
     def fetch(self) -> BlsCalendarPayload:
         """Return a fresh or conditionally validated official calendar."""
         try:
             payload = self._transport.fetch()
         except CachedDocumentError as error:
-            raise BlsTransportError(str(error)) from error
+            raise BlsTransportError(
+                str(error), category=error.category, http_status=error.http_status
+            ) from error
         return BlsCalendarPayload(
             text=payload.text,
             retrieved_at=payload.retrieved_at,

@@ -10,6 +10,7 @@ from macro_event_telegram_alerts.providers.cached_http import (
     Clock,
     HttpGet,
     HttpResult,
+    TransportDiagnostics,
 )
 
 FOMC_CALENDAR_URL = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
@@ -17,7 +18,7 @@ DEFAULT_MIN_POLL_INTERVAL = timedelta(hours=6)
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 
 
-class FedTransportError(RuntimeError):
+class FedTransportError(CachedDocumentError):
     """The official FOMC calendar could not be retrieved or cached safely."""
 
 
@@ -42,6 +43,7 @@ class FomcCalendarTransport:
         min_poll_interval: timedelta = DEFAULT_MIN_POLL_INTERVAL,
         timeout_seconds: float = 20.0,
         http_get: HttpGet | None = None,
+        allow_network: bool = True,
     ) -> None:
         self._transport = CachedDocumentTransport(
             source_name="FOMC calendar",
@@ -57,14 +59,21 @@ class FomcCalendarTransport:
             max_response_bytes=MAX_RESPONSE_BYTES,
             timeout_seconds=timeout_seconds,
             http_get=http_get,
+            allow_network=allow_network,
         )
+
+    def diagnostics(self) -> TransportDiagnostics:
+        """Return the shared transport's safe diagnostics."""
+        return self._transport.diagnostics()
 
     def fetch(self) -> FomcCalendarPayload:
         """Return a fresh or conditionally validated official calendar."""
         try:
             payload = self._transport.fetch()
         except CachedDocumentError as error:
-            raise FedTransportError(str(error)) from error
+            raise FedTransportError(
+                str(error), category=error.category, http_status=error.http_status
+            ) from error
         return FomcCalendarPayload(
             text=payload.text,
             retrieved_at=payload.retrieved_at,

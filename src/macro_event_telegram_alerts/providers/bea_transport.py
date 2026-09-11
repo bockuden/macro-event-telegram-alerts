@@ -10,6 +10,7 @@ from macro_event_telegram_alerts.providers.cached_http import (
     Clock,
     HttpGet,
     HttpResult,
+    TransportDiagnostics,
 )
 
 BEA_SCHEDULE_URL = "https://www.bea.gov/news/schedule/full"
@@ -17,7 +18,7 @@ DEFAULT_MIN_POLL_INTERVAL = timedelta(hours=6)
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 
 
-class BeaTransportError(RuntimeError):
+class BeaTransportError(CachedDocumentError):
     """The official BEA schedule could not be retrieved or cached safely."""
 
 
@@ -42,6 +43,7 @@ class BeaScheduleTransport:
         min_poll_interval: timedelta = DEFAULT_MIN_POLL_INTERVAL,
         timeout_seconds: float = 20.0,
         http_get: HttpGet | None = None,
+        allow_network: bool = True,
     ) -> None:
         self._transport = CachedDocumentTransport(
             source_name="BEA schedule",
@@ -57,14 +59,21 @@ class BeaScheduleTransport:
             max_response_bytes=MAX_RESPONSE_BYTES,
             timeout_seconds=timeout_seconds,
             http_get=http_get,
+            allow_network=allow_network,
         )
+
+    def diagnostics(self) -> TransportDiagnostics:
+        """Return the shared transport's safe diagnostics."""
+        return self._transport.diagnostics()
 
     def fetch(self) -> BeaSchedulePayload:
         """Return a fresh or conditionally validated official schedule."""
         try:
             payload = self._transport.fetch()
         except CachedDocumentError as error:
-            raise BeaTransportError(str(error)) from error
+            raise BeaTransportError(
+                str(error), category=error.category, http_status=error.http_status
+            ) from error
         return BeaSchedulePayload(
             text=payload.text,
             retrieved_at=payload.retrieved_at,
