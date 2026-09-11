@@ -178,6 +178,13 @@ docker compose -f compose.release.yaml ps
 docker compose -f compose.release.yaml logs --tail=100 macro-event-telegram-alerts
 ```
 
+The default source policy is intentionally respectful: rejected sources pause
+for six hours, temporary failures use a bounded backoff, and a fallback calendar
+is never used after seven days. The three `source_*` retry settings in
+`config.toml` let an operator adjust those limits; see
+[operations and troubleshooting](docs/operations.md#retry-policy) before doing
+so.
+
 The service requires no inbound port or reverse proxy. To stop it without
 forgetting delivery history, run `docker compose -f compose.release.yaml down`.
 Use `down --volumes` only for an intentional reset: it removes the SQLite
