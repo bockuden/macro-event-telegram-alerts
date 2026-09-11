@@ -378,8 +378,7 @@ class CachedDocumentTransport:
         failure_count: int,
     ) -> datetime:
         if (
-            category is FailureCategory.HTTP
-            and _is_transient_status(http_status)
+            category is FailureCategory.HTTP and _is_transient_status(http_status)
         ) or category in {FailureCategory.TIMEOUT, FailureCategory.NETWORK}:
             multiplier = 2 ** min(failure_count - 1, 20)
             delay: timedelta = self._min_poll_interval * multiplier
