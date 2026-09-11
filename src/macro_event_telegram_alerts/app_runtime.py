@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -14,6 +14,11 @@ from macro_event_telegram_alerts.providers.bea_schedule import BeaScheduleProvid
 from macro_event_telegram_alerts.providers.bea_transport import BeaScheduleTransport
 from macro_event_telegram_alerts.providers.bls_calendar import BlsCalendarProvider
 from macro_event_telegram_alerts.providers.bls_transport import BlsCalendarTransport
+from macro_event_telegram_alerts.providers.cached_http import (
+    CachedDocumentError,
+    FailureCategory,
+    TransportDiagnostics,
+)
 from macro_event_telegram_alerts.providers.fed_transport import FomcCalendarTransport
 from macro_event_telegram_alerts.providers.fomc_calendar import FomcCalendarProvider
 from macro_event_telegram_alerts.reminder_service import (
@@ -21,6 +26,7 @@ from macro_event_telegram_alerts.reminder_service import (
     ReminderService,
 )
 from macro_event_telegram_alerts.reminders import Reminder
+from macro_event_telegram_alerts.source_diagnostics import SourceReport
 
 type Clock = Callable[[], datetime]
 type DeliverReminder = Callable[[Reminder], None]
@@ -44,6 +50,7 @@ class NamedProvider:
 
     name: SourceName
     provider: EventProvider
+    diagnostics: Callable[[], TransportDiagnostics] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,22 +85,15 @@ class ApplicationRunner:
         events: list[MacroEvent] = []
         failures: list[SourceName] = []
         for named_provider in self._providers:
-            try:
-                source_events = named_provider.provider.load()
-            except Exception as error:
+            source_events, report = inspect_source(named_provider, now_utc)
+            if report.status != "healthy":
                 failures.append(named_provider.name)
-                LOGGER.warning(
-                    "Official source load failed: source=%s error_type=%s",
-                    named_provider.name.value,
-                    type(error).__name__,
-                )
-            else:
-                events.extend(source_events)
-                LOGGER.info(
-                    "Official source loaded: source=%s event_count=%s",
-                    named_provider.name.value,
-                    len(source_events),
-                )
+            events.extend(source_events)
+            log = LOGGER.warning if report.status != "healthy" else LOGGER.info
+            log(
+                "Official source status: %s",
+                " ".join(f"{key}={value}" for key, value in report.to_dict().items()),
+            )
         reminder_result = self._reminder_service.run(events, now_utc, deliver)
         result = ApplicationRunResult(
             loaded_events=len(events),
@@ -136,8 +136,63 @@ class ApplicationRunner:
         return tuple(results)
 
 
+def inspect_source(
+    named: NamedProvider, now: datetime
+) -> tuple[tuple[MacroEvent, ...], SourceReport]:
+    """Load one source without constructing a reminder ledger or notifier."""
+    now = _require_utc(now)
+    error_category: FailureCategory | None = None
+    http_status: int | None = None
+    try:
+        events = named.provider.load()
+    except CachedDocumentError as error:
+        error_category, http_status = error.category, error.http_status
+        events = ()
+    except ValueError:
+        error_category = FailureCategory.PARSE
+        events = ()
+    except Exception:
+        error_category = FailureCategory.UNKNOWN
+        events = ()
+    diagnostic = named.diagnostics() if named.diagnostics else TransportDiagnostics()
+    if error_category is not None:
+        diagnostic = replace(
+            diagnostic,
+            category=error_category,
+            http_status=http_status
+            if http_status is not None
+            else diagnostic.http_status,
+        )
+    failed = error_category is not None
+    future = [
+        event
+        for event in events
+        if (event.starts_at_utc is not None and event.starts_at_utc > now)
+        or (event.starts_at_utc is None and event.scheduled_date >= now.date())
+    ]
+    timed = [event.starts_at_utc for event in future if event.starts_at_utc is not None]
+    return events, SourceReport(
+        source=named.name.value,
+        status="failed"
+        if failed
+        else "degraded"
+        if diagnostic.stale or diagnostic.category
+        else "healthy",
+        transport=diagnostic,
+        cache_age_seconds=(
+            max(0.0, (now - diagnostic.retrieved_at).total_seconds())
+            if diagnostic.retrieved_at
+            else None
+        ),
+        total_events=None if failed else len(events),
+        future_events=None if failed else len(future),
+        future_timed_events=None if failed else len(timed),
+        next_event_at=min(timed) if timed else None,
+    )
+
+
 def build_official_providers(
-    config: AppConfig, *, clock: Clock
+    config: AppConfig, *, clock: Clock, allow_network: bool = True
 ) -> tuple[NamedProvider, ...]:
     """Build configured official-source adapters without fetching their data."""
     user_agent = "macro-event-telegram-alerts/0.1.0 (+https://github.com/bockuden/macro-event-telegram-alerts)"
@@ -145,45 +200,48 @@ def build_official_providers(
     for source in config.sources:
         cache_dir = config.cache_dir / source.value
         if source is SourceName.BLS:
+            bls_transport = BlsCalendarTransport(
+                cache_dir=cache_dir,
+                user_agent=user_agent,
+                clock=clock,
+                min_poll_interval=config.source_poll_interval,
+                allow_network=allow_network,
+            )
             providers.append(
                 NamedProvider(
                     source,
-                    BlsCalendarProvider(
-                        BlsCalendarTransport(
-                            cache_dir=cache_dir,
-                            user_agent=user_agent,
-                            clock=clock,
-                            min_poll_interval=config.source_poll_interval,
-                        )
-                    ),
+                    BlsCalendarProvider(bls_transport),
+                    bls_transport.diagnostics,
                 )
             )
         elif source is SourceName.BEA:
+            bea_transport = BeaScheduleTransport(
+                cache_dir=cache_dir,
+                user_agent=user_agent,
+                clock=clock,
+                min_poll_interval=config.source_poll_interval,
+                allow_network=allow_network,
+            )
             providers.append(
                 NamedProvider(
                     source,
-                    BeaScheduleProvider(
-                        BeaScheduleTransport(
-                            cache_dir=cache_dir,
-                            user_agent=user_agent,
-                            clock=clock,
-                            min_poll_interval=config.source_poll_interval,
-                        )
-                    ),
+                    BeaScheduleProvider(bea_transport),
+                    bea_transport.diagnostics,
                 )
             )
         elif source is SourceName.FOMC:
+            fomc_transport = FomcCalendarTransport(
+                cache_dir=cache_dir,
+                user_agent=user_agent,
+                clock=clock,
+                min_poll_interval=config.source_poll_interval,
+                allow_network=allow_network,
+            )
             providers.append(
                 NamedProvider(
                     source,
-                    FomcCalendarProvider(
-                        FomcCalendarTransport(
-                            cache_dir=cache_dir,
-                            user_agent=user_agent,
-                            clock=clock,
-                            min_poll_interval=config.source_poll_interval,
-                        )
-                    ),
+                    FomcCalendarProvider(fomc_transport),
+                    fomc_transport.diagnostics,
                 )
             )
     return tuple(providers)

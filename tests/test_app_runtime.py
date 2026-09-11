@@ -95,7 +95,7 @@ def test_source_failure_log_uses_only_safe_diagnostics(
     ).run_once(datetime(2026, 9, 15, 12, 20, tzinfo=UTC), lambda _: None)
 
     assert "source=bls" in caplog.text
-    assert "error_type=RuntimeError" in caplog.text
+    assert "category=unknown" in caplog.text
     assert secret not in caplog.text
 
 
