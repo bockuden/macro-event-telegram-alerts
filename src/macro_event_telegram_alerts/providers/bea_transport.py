@@ -44,6 +44,9 @@ class BeaScheduleTransport:
         timeout_seconds: float = 20.0,
         http_get: HttpGet | None = None,
         allow_network: bool = True,
+        rejection_cooldown: timedelta = timedelta(hours=6),
+        max_retry_backoff: timedelta = timedelta(hours=24),
+        max_stale_cache_age: timedelta = timedelta(days=7),
     ) -> None:
         self._transport = CachedDocumentTransport(
             source_name="BEA schedule",
@@ -60,6 +63,9 @@ class BeaScheduleTransport:
             timeout_seconds=timeout_seconds,
             http_get=http_get,
             allow_network=allow_network,
+            rejection_cooldown=rejection_cooldown,
+            max_retry_backoff=max_retry_backoff,
+            max_stale_cache_age=max_stale_cache_age,
         )
 
     def diagnostics(self) -> TransportDiagnostics:

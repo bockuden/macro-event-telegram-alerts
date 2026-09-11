@@ -92,6 +92,16 @@ class _CachedDocument:
     metadata: _CacheMetadata
 
 
+@dataclass(frozen=True, slots=True)
+class _RetryState:
+    """Persistent retry state that exists even when no document was cached."""
+
+    not_before: datetime
+    category: FailureCategory
+    http_status: int | None
+    failure_count: int
+
+
 class CachedDocumentTransport:
     """Retrieve one fixed official URL using conditional requests and a cache."""
 
@@ -112,6 +122,9 @@ class CachedDocumentTransport:
         timeout_seconds: float = 20.0,
         http_get: HttpGet | None = None,
         allow_network: bool = True,
+        rejection_cooldown: timedelta = timedelta(hours=6),
+        max_retry_backoff: timedelta = timedelta(hours=24),
+        max_stale_cache_age: timedelta = timedelta(days=7),
     ) -> None:
         if not source_name.strip():
             raise ValueError("source_name must not be empty")
@@ -123,6 +136,12 @@ class CachedDocumentTransport:
             raise ValueError("timeout_seconds must be positive")
         if not 0 < max_response_bytes <= MAX_HTTP_READ_BYTES:
             raise ValueError("max_response_bytes is outside the supported range")
+        if rejection_cooldown <= timedelta(0):
+            raise ValueError("rejection_cooldown must be positive")
+        if max_retry_backoff < min_poll_interval:
+            raise ValueError("max_retry_backoff must not be shorter than min_poll_interval")
+        if max_stale_cache_age <= timedelta(0):
+            raise ValueError("max_stale_cache_age must be positive")
 
         self._source_name = source_name
         self._url = url
@@ -138,6 +157,9 @@ class CachedDocumentTransport:
         self._timeout_seconds = timeout_seconds
         self._http_get = http_get or _urllib_get
         self._allow_network = allow_network
+        self._rejection_cooldown = rejection_cooldown
+        self._max_retry_backoff = max_retry_backoff
+        self._max_stale_cache_age = max_stale_cache_age
         self._diagnostics = TransportDiagnostics()
 
     def diagnostics(self) -> TransportDiagnostics:
@@ -149,16 +171,19 @@ class CachedDocumentTransport:
         now = _utc_time(self._clock(), "clock")
         self._diagnostics = TransportDiagnostics()
         cached = self._read_cache()
+        retry_state = self._read_retry_state()
         if cached is not None:
-            self._observe_cache(cached, now)
+            self._observe_cache(cached, now, retry_state)
         if not self._allow_network:
             if cached is None:
                 raise self._error("has no local cache", FailureCategory.CACHE_MISSING)
             return _payload_from_cache(cached)
-        if cached is not None:
-            retry_not_before = cached.metadata.retry_not_before
-            if retry_not_before is not None and now < retry_not_before:
+        if retry_state is not None and now < retry_state.not_before:
+            self._observe_retry_state(retry_state)
+            if cached is not None and self._cache_is_acceptable(cached, now):
                 return _payload_from_cache(cached)
+            raise self._error("retry cooldown is active", retry_state.category)
+        if cached is not None:
             age = now - cached.metadata.checked_at
             if timedelta(0) <= age < self._min_poll_interval:
                 return _payload_from_cache(cached)
@@ -178,11 +203,15 @@ class CachedDocumentTransport:
                 or isinstance(getattr(error, "reason", None), TimeoutError)
                 else FailureCategory.NETWORK
             )
-            self._diagnostics = replace(self._diagnostics, category=category)
-            if cached is not None:
-                self._defer_retry(cached, now, None)
-                return _payload_from_cache(cached)
-            raise self._error("request failed", category) from error
+            return self._recover_or_fail(
+                cached,
+                now,
+                category=category,
+                http_status=None,
+                headers=None,
+                message="request failed",
+                cause=error,
+            )
 
         self._diagnostics = replace(self._diagnostics, http_status=result.status)
 
@@ -201,7 +230,8 @@ class CachedDocumentTransport:
                 validated_at=now,
             )
             self._write_cache(cached.text, metadata)
-            self._observe_cache(_CachedDocument(cached.text, metadata), now)
+            self._clear_retry_state()
+            self._observe_cache(_CachedDocument(cached.text, metadata), now, None)
             return CachedDocumentPayload(
                 text=cached.text,
                 retrieved_at=metadata.retrieved_at,
@@ -209,32 +239,49 @@ class CachedDocumentTransport:
             )
 
         if result.status != 200:
-            self._diagnostics = replace(
-                self._diagnostics, category=FailureCategory.HTTP
+            return self._recover_or_fail(
+                cached,
+                now,
+                category=FailureCategory.HTTP,
+                http_status=result.status,
+                headers=result.headers,
+                message=f"returned HTTP {result.status}",
             )
-            if cached is not None and _is_transient_status(result.status):
-                self._defer_retry(cached, now, result.headers)
-                return _payload_from_cache(cached)
-            raise self._error(f"returned HTTP {result.status}", FailureCategory.HTTP)
 
         content_type = _header(result.headers, "content-type")
         if (
             content_type is None
             or self._expected_content_type not in content_type.lower()
         ):
-            raise self._error(
-                "returned an unexpected content type", FailureCategory.CONTENT
+            return self._recover_or_fail(
+                cached,
+                now,
+                category=FailureCategory.CONTENT,
+                http_status=result.status,
+                headers=result.headers,
+                message="returned an unexpected content type",
             )
         if len(result.body) > self._max_response_bytes:
-            raise self._error(
-                "response exceeds the size limit", FailureCategory.CONTENT
+            return self._recover_or_fail(
+                cached,
+                now,
+                category=FailureCategory.CONTENT,
+                http_status=result.status,
+                headers=result.headers,
+                message="response exceeds the size limit",
             )
         try:
             text = result.body.decode("utf-8-sig")
         except UnicodeDecodeError as error:
-            raise self._error(
-                "response is not valid UTF-8", FailureCategory.CONTENT
-            ) from error
+            return self._recover_or_fail(
+                cached,
+                now,
+                category=FailureCategory.CONTENT,
+                http_status=result.status,
+                headers=result.headers,
+                message="response is not valid UTF-8",
+                cause=error,
+            )
 
         text = _normalize_newlines(text)
         metadata = _CacheMetadata(
@@ -246,18 +293,26 @@ class CachedDocumentTransport:
             validated_at=now,
         )
         self._write_cache(text, metadata)
-        self._observe_cache(_CachedDocument(text, metadata), now)
+        self._clear_retry_state()
+        self._observe_cache(_CachedDocument(text, metadata), now, None)
         self._diagnostics = replace(self._diagnostics, from_cache=False)
         return CachedDocumentPayload(text=text, retrieved_at=now, from_cache=False)
 
-    def _observe_cache(self, cached: _CachedDocument, now: datetime) -> None:
+    def _observe_cache(
+        self,
+        cached: _CachedDocument,
+        now: datetime,
+        retry_state: _RetryState | None,
+    ) -> None:
         metadata = cached.metadata
         validated = metadata.validated_at
         next_request = metadata.checked_at + self._min_poll_interval
-        if metadata.retry_not_before is not None:
-            next_request = max(next_request, metadata.retry_not_before)
+        if retry_state is not None:
+            next_request = max(next_request, retry_state.not_before)
         self._diagnostics = replace(
             self._diagnostics,
+            category=retry_state.category if retry_state is not None else None,
+            http_status=retry_state.http_status if retry_state is not None else None,
             retrieved_at=metadata.retrieved_at,
             validated_at=validated,
             next_request_at=next_request,
@@ -265,27 +320,69 @@ class CachedDocumentTransport:
             stale=(validated is None or now >= validated + self._min_poll_interval),
         )
 
-    def _defer_retry(
+    def _recover_or_fail(
         self,
-        cached: _CachedDocument,
+        cached: _CachedDocument | None,
         now: datetime,
+        *,
+        category: FailureCategory,
+        http_status: int | None,
         headers: Mapping[str, str] | None,
-    ) -> None:
-        retry_not_before = now + self._min_poll_interval
-        if headers is not None:
-            retry_after = _retry_after(headers, now)
-            if retry_after is not None:
-                retry_not_before = max(retry_not_before, retry_after)
-        metadata = _CacheMetadata(
-            checked_at=now,
-            retrieved_at=cached.metadata.retrieved_at,
-            etag=cached.metadata.etag,
-            last_modified=cached.metadata.last_modified,
-            retry_not_before=retry_not_before,
-            validated_at=cached.metadata.validated_at,
+        message: str,
+        cause: Exception | None = None,
+    ) -> CachedDocumentPayload:
+        previous = self._read_retry_state()
+        failure_count = 1 if previous is None else previous.failure_count + 1
+        retry_state = _RetryState(
+            not_before=self._retry_not_before(
+                now, category, http_status, headers, failure_count
+            ),
+            category=category,
+            http_status=http_status,
+            failure_count=failure_count,
         )
-        self._write_cache(cached.text, metadata)
-        self._observe_cache(_CachedDocument(cached.text, metadata), now)
+        self._write_retry_state(retry_state)
+        self._observe_retry_state(retry_state)
+        if cached is not None and self._cache_is_acceptable(cached, now):
+            self._observe_cache(cached, now, retry_state)
+            return _payload_from_cache(cached)
+        error = self._error(message, category)
+        if cause is not None:
+            raise error from cause
+        raise error
+
+    def _retry_not_before(
+        self,
+        now: datetime,
+        category: FailureCategory,
+        http_status: int | None,
+        headers: Mapping[str, str] | None,
+        failure_count: int,
+    ) -> datetime:
+        if category is FailureCategory.HTTP and _is_transient_status(http_status):
+            multiplier = 2 ** min(failure_count - 1, 20)
+            delay = min(self._min_poll_interval * multiplier, self._max_retry_backoff)
+        elif category in {FailureCategory.TIMEOUT, FailureCategory.NETWORK}:
+            multiplier = 2 ** min(failure_count - 1, 20)
+            delay = min(self._min_poll_interval * multiplier, self._max_retry_backoff)
+        else:
+            delay = self._rejection_cooldown
+        retry_at = now + delay
+        if headers is not None and (retry_after := _retry_after(headers, now)) is not None:
+            retry_at = max(retry_at, retry_after)
+        return retry_at
+
+    def _cache_is_acceptable(self, cached: _CachedDocument, now: datetime) -> bool:
+        age = now - cached.metadata.retrieved_at
+        return age <= self._max_stale_cache_age
+
+    def _observe_retry_state(self, state: _RetryState) -> None:
+        self._diagnostics = replace(
+            self._diagnostics,
+            category=state.category,
+            http_status=state.http_status,
+            next_request_at=state.not_before,
+        )
 
     def _read_cache(self) -> _CachedDocument | None:
         document_path = self._cache_dir / self._document_filename
@@ -302,6 +399,53 @@ class CachedDocumentTransport:
         except (OSError, ValueError) as error:
             raise self._error("cache is invalid", FailureCategory.CACHE) from error
         return _CachedDocument(text=text, metadata=metadata)
+
+    def _retry_state_path(self) -> Path:
+        metadata_path = self._cache_dir / self._metadata_filename
+        return metadata_path.with_name(f"{metadata_path.stem}-retry.json")
+
+    def _read_retry_state(self) -> _RetryState | None:
+        path = self._retry_state_path()
+        if not path.exists():
+            return None
+        if not path.is_file():
+            raise self._error("retry state is invalid", FailureCategory.CACHE)
+        try:
+            raw: object = json.loads(path.read_text(encoding="utf-8"))
+            return _parse_retry_state(raw)
+        except (OSError, ValueError) as error:
+            raise self._error("retry state is invalid", FailureCategory.CACHE) from error
+
+    def _write_retry_state(self, state: _RetryState) -> None:
+        path = self._retry_state_path()
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        document = {
+            "category": state.category.value,
+            "failure_count": state.failure_count,
+            "http_status": state.http_status,
+            "not_before": state.not_before.isoformat(),
+        }
+        try:
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(
+                json.dumps(document, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            temporary.replace(path)
+        except OSError as error:
+            raise self._error(
+                "retry state could not be written", FailureCategory.CACHE
+            ) from error
+
+    def _clear_retry_state(self) -> None:
+        path = self._retry_state_path()
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as error:
+            raise self._error(
+                "retry state could not be cleared", FailureCategory.CACHE
+            ) from error
 
     def _write_cache(self, text: str, metadata: _CacheMetadata) -> None:
         document_path = self._cache_dir / self._document_filename
@@ -392,6 +536,32 @@ def _parse_metadata(value: object) -> _CacheMetadata:
     )
 
 
+def _parse_retry_state(value: object) -> _RetryState:
+    if not isinstance(value, dict):
+        raise ValueError("retry state must be an object")
+    raw_category = value.get("category")
+    if not isinstance(raw_category, str):
+        raise ValueError("retry state category must be a string")
+    try:
+        category = FailureCategory(raw_category)
+    except ValueError as error:
+        raise ValueError("retry state category is unsupported") from error
+    raw_status = value.get("http_status")
+    if raw_status is not None and (
+        not isinstance(raw_status, int) or isinstance(raw_status, bool)
+    ):
+        raise ValueError("retry state http_status must be an integer or null")
+    raw_count = value.get("failure_count")
+    if not isinstance(raw_count, int) or isinstance(raw_count, bool) or raw_count <= 0:
+        raise ValueError("retry state failure_count must be a positive integer")
+    return _RetryState(
+        not_before=_metadata_datetime(value, "not_before"),
+        category=category,
+        http_status=raw_status,
+        failure_count=raw_count,
+    )
+
+
 def _metadata_datetime(value: dict[object, object], name: str) -> datetime:
     raw = value.get(name)
     if not isinstance(raw, str):
@@ -456,7 +626,9 @@ def _normalize_newlines(value: str) -> str:
     return value.replace("\r\n", "\n").replace("\r", "\n")
 
 
-def _is_transient_status(status: int) -> bool:
+def _is_transient_status(status: int | None) -> bool:
+    if status is None:
+        return False
     return status in {408, 425, 429} or status >= 500
 
 
