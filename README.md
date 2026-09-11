@@ -187,6 +187,18 @@ release's notes, then repeat `pull` and `up -d`.
 
 ## Troubleshooting
 
+For builds containing Issue #13 (not the original `v0.1.0` image), inspect source
+status without contacting Telegram or changing delivery history:
+
+```bash
+python -m macro_event_telegram_alerts diagnose-sources --config config.toml
+```
+
+This defaults to cache-only inspection. It reports HTTP/failure categories,
+cache freshness, future-event counts, and the next scheduled UTC instant.
+See [source diagnostics](docs/source-diagnostics.md) for Docker commands, the
+explicit `--live` probe, exit codes, and the meaning of missing or stale data.
+
 Start with `check-config` when the application rejects configuration, then use
 `dry-run` before troubleshooting a live Telegram delivery. In Docker, use
 `docker compose ps` and `docker compose logs --tail=100
@@ -264,6 +276,7 @@ Notifications are calendar reminders, not trading signals or financial advice.
 - [Docker Compose operation](docs/docker.md)
 - [Release validation](docs/release-validation.md)
 - [Operations and troubleshooting](docs/operations.md)
+- [Source diagnostics and HTTP failure reporting](docs/source-diagnostics.md)
 - [GitHub Container Registry releases](docs/ghcr.md)
 - [Official source catalog](docs/source-catalog.md)
 - [Contributing](CONTRIBUTING.md)
