@@ -41,6 +41,9 @@ class AppConfig:
     ledger_path: Path
     health_path: Path
     source_poll_interval: timedelta
+    source_rejection_cooldown: timedelta
+    source_retry_max_backoff: timedelta
+    source_max_stale_cache_age: timedelta
     loop_interval: timedelta
     reminder_policy: ReminderPolicy
     telegram: TelegramConfig | None
@@ -69,6 +72,9 @@ def load_config(path: Path) -> AppConfig:
             "ledger_path",
             "health_path",
             "source_poll_interval_minutes",
+            "source_rejection_cooldown_minutes",
+            "source_retry_max_backoff_minutes",
+            "source_max_stale_cache_hours",
             "loop_interval_seconds",
             "reminder_lead_minutes",
         },
@@ -85,6 +91,19 @@ def load_config(path: Path) -> AppConfig:
         base_dir,
         "health_path",
     )
+    source_poll_interval = _positive_minutes(
+        _required(application, "source_poll_interval_minutes", "application"),
+        "source_poll_interval_minutes",
+    )
+    source_retry_max_backoff = _positive_minutes(
+        application.get("source_retry_max_backoff_minutes", 1440),
+        "source_retry_max_backoff_minutes",
+    )
+    if source_retry_max_backoff < source_poll_interval:
+        raise ConfigError(
+            "application.source_retry_max_backoff_minutes must not be shorter "
+            "than source_poll_interval_minutes"
+        )
     return AppConfig(
         sources=_sources(_required(application, "sources", "application")),
         timezone=_timezone(_required(application, "timezone", "application")),
@@ -93,9 +112,15 @@ def load_config(path: Path) -> AppConfig:
         ),
         ledger_path=ledger_path,
         health_path=health_path,
-        source_poll_interval=_positive_minutes(
-            _required(application, "source_poll_interval_minutes", "application"),
-            "source_poll_interval_minutes",
+        source_poll_interval=source_poll_interval,
+        source_rejection_cooldown=_positive_minutes(
+            application.get("source_rejection_cooldown_minutes", 360),
+            "source_rejection_cooldown_minutes",
+        ),
+        source_retry_max_backoff=source_retry_max_backoff,
+        source_max_stale_cache_age=_positive_hours(
+            application.get("source_max_stale_cache_hours", 168),
+            "source_max_stale_cache_hours",
         ),
         loop_interval=_positive_seconds(
             _required(application, "loop_interval_seconds", "application"),
@@ -156,6 +181,10 @@ def _positive_minutes(value: object, name: str) -> timedelta:
 
 def _positive_seconds(value: object, name: str) -> timedelta:
     return timedelta(seconds=_positive_integer(value, f"application.{name}"))
+
+
+def _positive_hours(value: object, name: str) -> timedelta:
+    return timedelta(hours=_positive_integer(value, f"application.{name}"))
 
 
 def _positive_integer_list(

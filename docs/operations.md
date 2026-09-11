@@ -9,10 +9,23 @@ transient: the reminder remains eligible on the next service loop. A Telegram
 invalid token or unavailable chat. It is retained in the ledger for diagnosis
 but is not retried automatically.
 
-Official-source retrieval follows the same conservative distinction. A cached
-official document can be reused on a network failure, rate limit, or server
-failure; malformed data, an unexpected content type, and other permanent HTTP
-responses fail the source instead of masking a source-contract change.
+Official-source retrieval is source-local and persists its retry state beside
+the source cache. A BLS `403` or `404` therefore cannot cause one request per
+service loop, including after a container restart or before the first calendar
+was successfully downloaded. The other official sources continue normally.
+
+| Failure | Retry policy | Cached-calendar fallback |
+| --- | --- | --- |
+| `403`, `404`, other permanent `4xx`, invalid content | `source_rejection_cooldown_minutes` | Only while younger than `source_max_stale_cache_hours`. |
+| Timeout, network error, `408`, `425`, `429`, `5xx` | Exponential from `source_poll_interval_minutes`, capped by `source_retry_max_backoff_minutes` | Only while younger than `source_max_stale_cache_hours`. |
+| Valid HTTP `Retry-After` | Never earlier than the supplied time | Same limit. |
+
+A successful `200` or `304` clears the cooldown. A fallback cache does not
+refresh its retrieval or validation time. Defaults are a six-hour rejection
+cooldown, one-day maximum temporary backoff, and seven-day maximum fallback
+cache age. These values are deliberately conservative for public institutional
+sites; lower them only when the provider explicitly permits more frequent
+access.
 
 ## Safe diagnostics
 
@@ -40,7 +53,7 @@ docker compose ps
 | Symptom | Safe check | Likely action |
 | --- | --- | --- |
 | `Configuration error` | Run `check-config` against the local TOML file. | Compare local files with the tracked examples; keep values in `.env`. |
-| Source failure in logs | Note only the safe source name and error type. | Keep the cache volume, wait for the next loop, then check the institution's public schedule. |
+| Source failure in logs | Note the safe source name, HTTP/error type, cache age, and `next_request_at`. | Keep the cache volume, wait for the recorded cooldown, then check the institution's public schedule. |
 | Telegram HTTP 401/403/400 | Confirm the token and chat ID locally without printing them. | Correct the local `.env`, then restart; permanent failures are not automatically retried. |
 | Container is unhealthy | Run `docker compose ps` and inspect safe logs. | Verify source access and delivery configuration; do not remove the volume unless a deliberate reset is required. |
 | A test notification is needed | Use `dry-run` first. | It prints due messages without reading Telegram credentials or contacting Telegram. |
