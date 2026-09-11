@@ -16,6 +16,12 @@ responses fail the source instead of masking a source-contract change.
 
 ## Safe diagnostics
 
+For cache-only inspection and an explicit bounded live probe, see
+[source diagnostics](source-diagnostics.md). The command does not send messages
+or update the delivery ledger. The continuous service now includes HTTP status,
+failure category, cache age, validation time, and future coverage in its source
+logs. Stale cached data is reported as degraded and does not refresh health.
+
 The continuous CLI writes structured human-readable logs to standard error.
 They contain source names, event counts, delivery outcome, HTTP/error codes, and
 whether a failure is retryable. They never contain a Telegram token, chat ID,

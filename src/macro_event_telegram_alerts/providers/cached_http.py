@@ -2,9 +2,10 @@
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
+from enum import StrEnum
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -12,8 +13,45 @@ from urllib.request import Request, urlopen
 MAX_HTTP_READ_BYTES = 4 * 1024 * 1024
 
 
+class FailureCategory(StrEnum):
+    """Allowlisted diagnostic categories, never external response text."""
+
+    HTTP = "http"
+    TIMEOUT = "timeout"
+    NETWORK = "network"
+    CONTENT = "content"
+    CACHE = "cache"
+    CACHE_MISSING = "cache_missing"
+    PARSE = "parse"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class TransportDiagnostics:
+    """Safe retrieval facts; unknown values remain None."""
+
+    category: FailureCategory | None = None
+    http_status: int | None = None
+    retrieved_at: datetime | None = None
+    validated_at: datetime | None = None
+    next_request_at: datetime | None = None
+    from_cache: bool = False
+    stale: bool = False
+
+
 class CachedDocumentError(RuntimeError):
     """An official document could not be retrieved or cached safely."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: FailureCategory = FailureCategory.UNKNOWN,
+        http_status: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.http_status = http_status
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +83,7 @@ class _CacheMetadata:
     etag: str | None = None
     last_modified: str | None = None
     retry_not_before: datetime | None = None
+    validated_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +111,7 @@ class CachedDocumentTransport:
         max_response_bytes: int,
         timeout_seconds: float = 20.0,
         http_get: HttpGet | None = None,
+        allow_network: bool = True,
     ) -> None:
         if not source_name.strip():
             raise ValueError("source_name must not be empty")
@@ -97,11 +137,24 @@ class CachedDocumentTransport:
         self._max_response_bytes = max_response_bytes
         self._timeout_seconds = timeout_seconds
         self._http_get = http_get or _urllib_get
+        self._allow_network = allow_network
+        self._diagnostics = TransportDiagnostics()
+
+    def diagnostics(self) -> TransportDiagnostics:
+        """Return facts from the most recent fetch attempt without I/O."""
+        return self._diagnostics
 
     def fetch(self) -> CachedDocumentPayload:
         """Return a fresh, conditionally validated, or stale cached document."""
         now = _utc_time(self._clock(), "clock")
+        self._diagnostics = TransportDiagnostics()
         cached = self._read_cache()
+        if cached is not None:
+            self._observe_cache(cached, now)
+        if not self._allow_network:
+            if cached is None:
+                raise self._error("has no local cache", FailureCategory.CACHE_MISSING)
+            return _payload_from_cache(cached)
         if cached is not None:
             retry_not_before = cached.metadata.retry_not_before
             if retry_not_before is not None and now < retry_not_before:
@@ -119,10 +172,19 @@ class CachedDocumentTransport:
         try:
             result = self._http_get(self._url, headers, self._timeout_seconds)
         except (OSError, URLError) as error:
+            category = (
+                FailureCategory.TIMEOUT
+                if isinstance(error, TimeoutError)
+                or isinstance(getattr(error, "reason", None), TimeoutError)
+                else FailureCategory.NETWORK
+            )
+            self._diagnostics = replace(self._diagnostics, category=category)
             if cached is not None:
                 self._defer_retry(cached, now, None)
                 return _payload_from_cache(cached)
-            raise self._error("request failed") from error
+            raise self._error("request failed", category) from error
+
+        self._diagnostics = replace(self._diagnostics, http_status=result.status)
 
         if result.status == 304:
             if cached is None:
@@ -136,8 +198,10 @@ class CachedDocumentTransport:
                     or cached.metadata.last_modified
                 ),
                 retry_not_before=None,
+                validated_at=now,
             )
             self._write_cache(cached.text, metadata)
+            self._observe_cache(_CachedDocument(cached.text, metadata), now)
             return CachedDocumentPayload(
                 text=cached.text,
                 retrieved_at=metadata.retrieved_at,
@@ -145,23 +209,32 @@ class CachedDocumentTransport:
             )
 
         if result.status != 200:
+            self._diagnostics = replace(
+                self._diagnostics, category=FailureCategory.HTTP
+            )
             if cached is not None and _is_transient_status(result.status):
                 self._defer_retry(cached, now, result.headers)
                 return _payload_from_cache(cached)
-            raise self._error(f"returned HTTP {result.status}")
+            raise self._error(f"returned HTTP {result.status}", FailureCategory.HTTP)
 
         content_type = _header(result.headers, "content-type")
         if (
             content_type is None
             or self._expected_content_type not in content_type.lower()
         ):
-            raise self._error("returned an unexpected content type")
+            raise self._error(
+                "returned an unexpected content type", FailureCategory.CONTENT
+            )
         if len(result.body) > self._max_response_bytes:
-            raise self._error("response exceeds the size limit")
+            raise self._error(
+                "response exceeds the size limit", FailureCategory.CONTENT
+            )
         try:
             text = result.body.decode("utf-8-sig")
         except UnicodeDecodeError as error:
-            raise self._error("response is not valid UTF-8") from error
+            raise self._error(
+                "response is not valid UTF-8", FailureCategory.CONTENT
+            ) from error
 
         text = _normalize_newlines(text)
         metadata = _CacheMetadata(
@@ -170,9 +243,27 @@ class CachedDocumentTransport:
             etag=_header(result.headers, "etag"),
             last_modified=_header(result.headers, "last-modified"),
             retry_not_before=None,
+            validated_at=now,
         )
         self._write_cache(text, metadata)
+        self._observe_cache(_CachedDocument(text, metadata), now)
+        self._diagnostics = replace(self._diagnostics, from_cache=False)
         return CachedDocumentPayload(text=text, retrieved_at=now, from_cache=False)
+
+    def _observe_cache(self, cached: _CachedDocument, now: datetime) -> None:
+        metadata = cached.metadata
+        validated = metadata.validated_at
+        next_request = metadata.checked_at + self._min_poll_interval
+        if metadata.retry_not_before is not None:
+            next_request = max(next_request, metadata.retry_not_before)
+        self._diagnostics = replace(
+            self._diagnostics,
+            retrieved_at=metadata.retrieved_at,
+            validated_at=validated,
+            next_request_at=next_request,
+            from_cache=True,
+            stale=(validated is None or now >= validated + self._min_poll_interval),
+        )
 
     def _defer_retry(
         self,
@@ -191,8 +282,10 @@ class CachedDocumentTransport:
             etag=cached.metadata.etag,
             last_modified=cached.metadata.last_modified,
             retry_not_before=retry_not_before,
+            validated_at=cached.metadata.validated_at,
         )
         self._write_cache(cached.text, metadata)
+        self._observe_cache(_CachedDocument(cached.text, metadata), now)
 
     def _read_cache(self) -> _CachedDocument | None:
         document_path = self._cache_dir / self._document_filename
@@ -200,18 +293,17 @@ class CachedDocumentTransport:
         if not document_path.exists() and not metadata_path.exists():
             return None
         if not document_path.is_file() or not metadata_path.is_file():
-            raise self._error("cache is incomplete")
+            raise self._error("cache is incomplete", FailureCategory.CACHE)
 
         try:
             raw_metadata: object = json.loads(metadata_path.read_text(encoding="utf-8"))
             metadata = _parse_metadata(raw_metadata)
             text = document_path.read_text(encoding="utf-8-sig")
         except (OSError, ValueError) as error:
-            raise self._error("cache is invalid") from error
+            raise self._error("cache is invalid", FailureCategory.CACHE) from error
         return _CachedDocument(text=text, metadata=metadata)
 
     def _write_cache(self, text: str, metadata: _CacheMetadata) -> None:
-        self._cache_dir.mkdir(parents=True, exist_ok=True)
         document_path = self._cache_dir / self._document_filename
         metadata_path = self._cache_dir / self._metadata_filename
         document_tmp = document_path.with_suffix(document_path.suffix + ".tmp")
@@ -219,6 +311,9 @@ class CachedDocumentTransport:
 
         metadata_document = {
             "checked_at": metadata.checked_at.isoformat(),
+            "validated_at": (
+                metadata.validated_at.isoformat() if metadata.validated_at else None
+            ),
             "retrieved_at": metadata.retrieved_at.isoformat(),
             "etag": metadata.etag,
             "last_modified": metadata.last_modified,
@@ -229,6 +324,7 @@ class CachedDocumentTransport:
             ),
         }
         try:
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
             document_tmp.write_text(text, encoding="utf-8", newline="\n")
             metadata_tmp.write_text(
                 json.dumps(metadata_document, indent=2, sort_keys=True) + "\n",
@@ -238,10 +334,19 @@ class CachedDocumentTransport:
             document_tmp.replace(document_path)
             metadata_tmp.replace(metadata_path)
         except OSError as error:
-            raise self._error("cache could not be written") from error
+            raise self._error(
+                "cache could not be written", FailureCategory.CACHE
+            ) from error
 
-    def _error(self, message: str) -> CachedDocumentError:
-        return CachedDocumentError(f"{self._source_name} {message}")
+    def _error(
+        self, message: str, category: FailureCategory = FailureCategory.CONTENT
+    ) -> CachedDocumentError:
+        self._diagnostics = replace(self._diagnostics, category=category)
+        return CachedDocumentError(
+            f"{self._source_name} {message}",
+            category=category,
+            http_status=self._diagnostics.http_status,
+        )
 
 
 def _urllib_get(
@@ -276,6 +381,13 @@ def _parse_metadata(value: object) -> _CacheMetadata:
         last_modified=_optional_string(value.get("last_modified"), "last_modified"),
         retry_not_before=_optional_datetime(
             value.get("retry_not_before"), "retry_not_before"
+        ),
+        validated_at=(
+            _optional_datetime(value.get("validated_at"), "validated_at")
+            if "validated_at" in value
+            else _metadata_datetime(value, "checked_at")
+            if value.get("retry_not_before") is None
+            else None
         ),
     )
 

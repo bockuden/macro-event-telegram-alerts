@@ -1,6 +1,7 @@
 """Command-line entry point for the configured reminder application."""
 
 import argparse
+import json
 import logging
 import os
 import signal
@@ -15,7 +16,9 @@ from typing import Protocol, TextIO, cast
 from macro_event_telegram_alerts.app_config import ConfigError, SourceName, load_config
 from macro_event_telegram_alerts.app_runtime import (
     ApplicationRunner,
+    build_official_providers,
     build_runner,
+    inspect_source,
     utc_now,
 )
 from macro_event_telegram_alerts.notifications import DryRunNotifier
@@ -67,6 +70,24 @@ def main(
         if parsed.command == "check-config":
             print("Configuration is valid.", file=output)
             return 0
+        if parsed.command == "diagnose-sources":
+            reports = [
+                inspect_source(provider, utc_now())[1]
+                for provider in build_official_providers(
+                    config, clock=utc_now, allow_network=parsed.live
+                )
+            ]
+            print(
+                json.dumps(
+                    {
+                        "mode": "live" if parsed.live else "cache-only",
+                        "sources": [report.to_dict() for report in reports],
+                    },
+                    indent=2,
+                ),
+                file=output,
+            )
+            return 1 if any(report.status != "healthy" for report in reports) else 0
         if parsed.command == "dry-run":
             notifier: _Notifier = DryRunNotifier(
                 lambda message: print(message, file=output)
@@ -94,7 +115,7 @@ def main(
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="macro-event-telegram-alerts")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    for command in ("check-config", "dry-run", "run"):
+    for command in ("check-config", "dry-run", "run", "diagnose-sources"):
         subparser = subcommands.add_parser(command)
         subparser.add_argument(
             "--config",
@@ -102,6 +123,12 @@ def _parser() -> argparse.ArgumentParser:
             default=Path("config.toml"),
             help="path to the non-secret TOML configuration file",
         )
+        if command == "diagnose-sources":
+            subparser.add_argument(
+                "--live",
+                action="store_true",
+                help="allow bounded calendar requests under existing cache/poll rules",
+            )
         if command == "run":
             subparser.add_argument(
                 "--once",
