@@ -48,6 +48,27 @@ docker compose logs --tail=100 macro-event-telegram-alerts
 docker compose ps
 ```
 
+## Operational Telegram notifications
+
+When `run` is used and `[operations].enabled` is true (the default), the same
+configured Telegram recipient receives a compact operational notice when a
+source becomes unhealthy or degraded. This is separate from the SQLite reminder
+ledger: an incident notice never marks a macro reminder as delivered.
+
+The default `failure_threshold = 1` reports the first unhealthy loop. Increase
+it if a source is occasionally unstable. The durable
+`state/source-incidents.json` file prevents a container restart from creating a
+new incident alert. After the initial alert, the service sends at most one
+follow-up per `followup_interval_minutes` (default: 24 hours), then sends one
+recovery alert when the source returns to healthy coverage.
+
+If Telegram rejects a notice or is temporarily unavailable, its delivery state
+is recorded separately and retried with a bounded delay. The service logs only
+safe source facts and does not try to send another alert about the failed alert.
+Telegram warnings cannot guarantee delivery when Telegram itself, the host, the
+network, or the whole service is unavailable; monitor container health and logs
+as an independent signal.
+
 ## Troubleshooting
 
 | Symptom | Safe check | Likely action |

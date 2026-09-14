@@ -32,6 +32,15 @@ class TelegramConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class OperationsConfig:
+    """Non-secret policy for bounded operational Telegram notifications."""
+
+    enabled: bool
+    failure_threshold: int
+    followup_interval: timedelta
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """All non-secret settings required to run the single process."""
 
@@ -47,6 +56,7 @@ class AppConfig:
     loop_interval: timedelta
     reminder_policy: ReminderPolicy
     telegram: TelegramConfig | None
+    operations: OperationsConfig
 
 
 def load_config(path: Path) -> AppConfig:
@@ -59,7 +69,9 @@ def load_config(path: Path) -> AppConfig:
         raise ConfigError("configuration file is not valid TOML") from error
     if not isinstance(document, dict):
         raise ConfigError("configuration root must be a TOML table")
-    _reject_unknown_keys(document, {"application", "telegram"}, "configuration")
+    _reject_unknown_keys(
+        document, {"application", "telegram", "operations"}, "configuration"
+    )
     application = _table(
         _required(document, "application", "configuration"), "application"
     )
@@ -140,6 +152,7 @@ def load_config(path: Path) -> AppConfig:
             )
         ),
         telegram=_telegram_config(document.get("telegram"), base_dir),
+        operations=_operations_config(document.get("operations")),
     )
 
 
@@ -234,6 +247,30 @@ def _telegram_config(value: object, base_dir: Path) -> TelegramConfig | None:
     if token_env is None and resolved_token_file is None:
         raise ConfigError("telegram must specify token_env or token_file")
     return TelegramConfig(chat_id_env, token_env, resolved_token_file)
+
+
+def _operations_config(value: object) -> OperationsConfig:
+    if value is None:
+        return OperationsConfig(True, 1, timedelta(hours=24))
+    operations = _table(value, "operations")
+    _reject_unknown_keys(
+        operations,
+        {"enabled", "failure_threshold", "followup_interval_minutes"},
+        "operations",
+    )
+    enabled = operations.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise ConfigError("operations.enabled must be a boolean")
+    return OperationsConfig(
+        enabled,
+        _positive_integer(
+            operations.get("failure_threshold", 1), "operations.failure_threshold"
+        ),
+        _positive_minutes(
+            operations.get("followup_interval_minutes", 1440),
+            "operations.followup_interval_minutes",
+        ),
+    )
 
 
 def _path_from_section(value: object, base_dir: Path, name: str) -> Path:

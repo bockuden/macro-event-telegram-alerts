@@ -45,6 +45,9 @@ loop_interval_seconds = 60
         15,
     ]
     assert config.telegram is None
+    assert config.operations.enabled
+    assert config.operations.failure_threshold == 1
+    assert config.operations.followup_interval.total_seconds() == 24 * 60 * 60
 
 
 def test_telegram_configuration_keeps_only_secret_location(tmp_path: Path) -> None:
@@ -143,3 +146,28 @@ loop_interval_seconds = 60
     assert config.source_rejection_cooldown.total_seconds() == 3 * 60 * 60
     assert config.source_retry_max_backoff.total_seconds() == 4 * 60 * 60
     assert config.source_max_stale_cache_age.total_seconds() == 48 * 60 * 60
+
+
+def test_loads_operational_notification_policy(tmp_path: Path) -> None:
+    config = load_config(
+        _write_config(
+            tmp_path,
+            """[application]
+sources = ["bls"]
+timezone = "UTC"
+cache_dir = "cache"
+ledger_path = "state.sqlite3"
+source_poll_interval_minutes = 30
+loop_interval_seconds = 60
+
+[operations]
+enabled = false
+failure_threshold = 3
+followup_interval_minutes = 120
+""",
+        )
+    )
+
+    assert not config.operations.enabled
+    assert config.operations.failure_threshold == 3
+    assert config.operations.followup_interval.total_seconds() == 2 * 60 * 60

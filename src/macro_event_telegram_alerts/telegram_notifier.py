@@ -62,10 +62,16 @@ class TelegramNotifier:
 
     def deliver(self, reminder: Reminder) -> None:
         """Send one message or raise a secret-safe delivery error."""
+        self.deliver_text(format_reminder_message(reminder))
+
+    def deliver_text(self, text: str) -> None:
+        """Send a non-empty operational or reminder message."""
+        if not text.strip():
+            raise ValueError("text must not be empty")
         payload = json.dumps(
             {
                 "chat_id": self._chat_id,
-                "text": format_reminder_message(reminder),
+                "text": text,
             },
             ensure_ascii=False,
         ).encode("utf-8")
