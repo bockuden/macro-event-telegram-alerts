@@ -22,6 +22,10 @@ from macro_event_telegram_alerts.app_runtime import (
     utc_now,
 )
 from macro_event_telegram_alerts.notifications import DryRunNotifier
+from macro_event_telegram_alerts.operational_incidents import (
+    OperationalIncidentReporter,
+    OperationalIncidentStore,
+)
 from macro_event_telegram_alerts.reminders import Reminder
 from macro_event_telegram_alerts.secrets import (
     load_dotenv,
@@ -38,7 +42,10 @@ class _RunResult(Protocol):
 
 class _Runner(Protocol):
     def run_once(
-        self, now: datetime, deliver: Callable[[Reminder], None]
+        self,
+        now: datetime,
+        deliver: Callable[[Reminder], None],
+        report_operational: Callable[[object, datetime], None] | None = None,
     ) -> _RunResult:
         """Run one loop for CLI testability."""
 
@@ -96,9 +103,26 @@ def main(
             load_dotenv(parsed.config.parent / ".env", environment)
             credentials = resolve_telegram_credentials(config.telegram, environment)
             notifier = TelegramNotifier(credentials.token, credentials.chat_id)
+        operational_reporter = (
+            OperationalIncidentReporter(
+                OperationalIncidentStore(
+                    config.ledger_path.parent / "source-incidents.json"
+                ),
+                notifier.deliver_text,
+                failure_threshold=config.operations.failure_threshold,
+                followup_interval=config.operations.followup_interval,
+            )
+            if parsed.command == "run" and config.operations.enabled
+            else None
+        )
         runner = runner_builder(config, clock=utc_now)
         if parsed.command == "dry-run" or parsed.once:
-            result = runner.run_once(utc_now(), notifier.deliver)
+            if operational_reporter is None:
+                result = runner.run_once(utc_now(), notifier.deliver)
+            else:
+                result = runner.run_once(
+                    utc_now(), notifier.deliver, operational_reporter.observe
+                )
             _print_result(result.failed_sources, error_output)
             return 1 if result.failed_sources else 0
         return _run_forever(
@@ -106,6 +130,7 @@ def main(
             config.loop_interval.total_seconds(),
             notifier.deliver,
             error_output,
+            operational_reporter.observe if operational_reporter else None,
         )
     except ConfigError as error:
         print(f"Configuration error: {error}", file=error_output)
@@ -143,6 +168,7 @@ def _run_forever(
     loop_interval_seconds: float,
     deliver: Callable[[Reminder], None],
     error_output: TextIO,
+    report_operational: Callable[[object, datetime], None] | None,
 ) -> int:
     stopping = False
 
@@ -159,6 +185,7 @@ def _run_forever(
         results = runner.run_until_stopped(
             clock=utc_now,
             deliver=deliver,
+            report_operational=report_operational,
             loop_interval_seconds=loop_interval_seconds,
             sleep=time.sleep,
             stop_requested=lambda: stopping,

@@ -37,6 +37,7 @@ from macro_event_telegram_alerts.source_diagnostics import SourceReport
 
 type Clock = Callable[[], datetime]
 type DeliverReminder = Callable[[Reminder], None]
+type ReportOperational = Callable[[SourceReport, datetime], None]
 type Sleep = Callable[[float], None]
 type StopRequested = Callable[[], bool]
 
@@ -86,6 +87,7 @@ class ApplicationRunner:
         self,
         now: datetime,
         deliver: DeliverReminder,
+        report_operational: ReportOperational | None = None,
     ) -> ApplicationRunResult:
         """Load healthy sources even if another source fails."""
         now_utc = _require_utc(now)
@@ -101,6 +103,14 @@ class ApplicationRunner:
                 "Official source status: %s",
                 " ".join(f"{key}={value}" for key, value in report.to_dict().items()),
             )
+            if report_operational is not None:
+                try:
+                    report_operational(report, now_utc)
+                except Exception:
+                    LOGGER.warning(
+                        "Operational source notification failed: source=%s",
+                        named_provider.name.value,
+                    )
         reminder_result = self._reminder_service.run(events, now_utc, deliver)
         result = ApplicationRunResult(
             loaded_events=len(events),
@@ -128,6 +138,7 @@ class ApplicationRunner:
         *,
         clock: Clock,
         deliver: DeliverReminder,
+        report_operational: ReportOperational | None = None,
         loop_interval_seconds: float,
         sleep: Sleep,
         stop_requested: StopRequested,
@@ -137,7 +148,7 @@ class ApplicationRunner:
             raise ValueError("loop_interval_seconds must be positive")
         results: list[ApplicationRunResult] = []
         while not stop_requested():
-            results.append(self.run_once(clock(), deliver))
+            results.append(self.run_once(clock(), deliver, report_operational))
             if not stop_requested():
                 sleep(loop_interval_seconds)
         return tuple(results)
