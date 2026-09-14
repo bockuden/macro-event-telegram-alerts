@@ -18,8 +18,10 @@ class _Runner:
     def __init__(self) -> None:
         self.calls = 0
 
-    def run_once(self, now: datetime, deliver: object) -> _Result:
-        del now, deliver
+    def run_once(
+        self, now: datetime, deliver: object, report_operational: object = None
+    ) -> _Result:
+        del now, deliver, report_operational
         self.calls += 1
         return _Result()
 

@@ -15,6 +15,13 @@ source_max_stale_cache_hours = 168
 loop_interval_seconds = 60
 reminder_lead_minutes = [1440, 60, 15]
 
+[operations]
+# Send an incident alert after this many unhealthy source loops.
+enabled = true
+failure_threshold = 1
+# Send at most one continuing-incident follow-up within this interval.
+followup_interval_minutes = 1440
+
 [telegram]
 # Keep both recipient and token outside this file. The application reads these names.
 chat_id_env = "MACRO_EVENT_TELEGRAM_CHAT_ID"

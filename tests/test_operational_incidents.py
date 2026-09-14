@@ -25,7 +25,9 @@ def test_incident_is_opened_once_persisted_and_then_recovered(tmp_path: Path) ->
     assert store.observe("bls", degraded=True, now=now) is None
     restarted = OperationalIncidentStore(path)
     assert restarted.observe("bls", degraded=True, now=now) is None
-    assert restarted.observe("bls", degraded=False, now=now).kind == "recovered"
+    recovered = restarted.observe("bls", degraded=False, now=now)
+    assert recovered is not None
+    assert recovered.kind == "recovered"
 
 
 def _report(status: str = "failed") -> SourceReport:

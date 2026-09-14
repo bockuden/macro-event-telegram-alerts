@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TypedDict, cast
 
 from macro_event_telegram_alerts.delivery_errors import DeliveryError
 from macro_event_telegram_alerts.source_diagnostics import SourceReport
@@ -14,6 +15,14 @@ from macro_event_telegram_alerts.source_diagnostics import SourceReport
 class IncidentChange:
     source: str
     kind: str
+
+
+class _IncidentEntry(TypedDict):
+    failures: int
+    notified: bool
+    attempts: int
+    retry_at: str | None
+    last_notified_at: str | None
 
 
 class OperationalIncidentStore:
@@ -80,7 +89,7 @@ class OperationalIncidentStore:
             entry["retry_at"] = (now + delay).isoformat()
         self._write(state)
 
-    def _read(self) -> dict[str, dict[str, object]]:
+    def _read(self) -> dict[str, _IncidentEntry]:
         if not self._path.exists():
             return {}
         try:
@@ -91,9 +100,9 @@ class OperationalIncidentStore:
             isinstance(key, str) and _valid_entry(value) for key, value in raw.items()
         ):
             raise ValueError("operational incident state is invalid")
-        return {key: dict(value) for key, value in raw.items()}
+        return {key: cast(_IncidentEntry, value) for key, value in raw.items()}
 
-    def _write(self, state: dict[str, dict[str, object]]) -> None:
+    def _write(self, state: dict[str, _IncidentEntry]) -> None:
         temporary = self._path.with_suffix(self._path.suffix + ".tmp")
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -113,7 +122,7 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
-def _empty_entry() -> dict[str, object]:
+def _empty_entry() -> _IncidentEntry:
     return {
         "failures": 0,
         "notified": False,
@@ -141,7 +150,7 @@ def _valid_entry(value: object) -> bool:
     )
 
 
-def _due(entry: dict[str, object], now: datetime) -> bool:
+def _due(entry: _IncidentEntry, now: datetime) -> bool:
     raw = entry["retry_at"]
     if raw is None:
         return True
@@ -152,8 +161,8 @@ def _due(entry: dict[str, object], now: datetime) -> bool:
     return now >= retry_at
 
 
-def _retry_delay(attempts: object, retryable: bool) -> timedelta:
-    count = int(attempts)
+def _retry_delay(attempts: int, retryable: bool) -> timedelta:
+    count = attempts
     if not retryable or count >= 3:
         return timedelta(hours=24)
     return timedelta(minutes=5 * (2 ** (count - 1)))

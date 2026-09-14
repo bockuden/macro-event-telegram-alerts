@@ -31,6 +31,7 @@ from macro_event_telegram_alerts.secrets import (
     load_dotenv,
     resolve_telegram_credentials,
 )
+from macro_event_telegram_alerts.source_diagnostics import SourceReport
 from macro_event_telegram_alerts.telegram_notifier import TelegramNotifier
 
 
@@ -45,7 +46,7 @@ class _Runner(Protocol):
         self,
         now: datetime,
         deliver: Callable[[Reminder], None],
-        report_operational: Callable[[object, datetime], None] | None = None,
+        report_operational: Callable[[SourceReport, datetime], None] | None = None,
     ) -> _RunResult:
         """Run one loop for CLI testability."""
 
@@ -99,20 +100,24 @@ def main(
             notifier: _Notifier = DryRunNotifier(
                 lambda message: print(message, file=output)
             )
+            operational_deliver: Callable[[str], None] | None = None
         else:
             load_dotenv(parsed.config.parent / ".env", environment)
             credentials = resolve_telegram_credentials(config.telegram, environment)
             notifier = TelegramNotifier(credentials.token, credentials.chat_id)
+            operational_deliver = notifier.deliver_text
         operational_reporter = (
             OperationalIncidentReporter(
                 OperationalIncidentStore(
                     config.ledger_path.parent / "source-incidents.json"
                 ),
-                notifier.deliver_text,
+                operational_deliver,
                 failure_threshold=config.operations.failure_threshold,
                 followup_interval=config.operations.followup_interval,
             )
-            if parsed.command == "run" and config.operations.enabled
+            if parsed.command == "run"
+            and config.operations.enabled
+            and operational_deliver is not None
             else None
         )
         runner = runner_builder(config, clock=utc_now)
@@ -168,7 +173,7 @@ def _run_forever(
     loop_interval_seconds: float,
     deliver: Callable[[Reminder], None],
     error_output: TextIO,
-    report_operational: Callable[[object, datetime], None] | None,
+    report_operational: Callable[[SourceReport, datetime], None] | None,
 ) -> int:
     stopping = False
 
