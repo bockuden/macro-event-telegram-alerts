@@ -131,7 +131,7 @@ def _normalize_event(
     source_url = _event_source_url(event.optional_one("URL"), rule.source_url)
 
     return MacroEvent(
-        source_id=f"bls:{uid}",
+        source_id=canonical_bls_source_id(rule.family, scheduled_date, starts_at_utc),
         title=rule.family.value,
         institution=BLS_INSTITUTION,
         source_url=source_url,
@@ -142,6 +142,18 @@ def _normalize_event(
         starts_at_local=starts_at_local,
         starts_at_utc=starts_at_utc,
     )
+
+
+def canonical_bls_source_id(
+    family: BlsEventFamily,
+    scheduled_date: date,
+    starts_at_utc: datetime | None,
+) -> str:
+    """Return a schedule identity shared by BLS and its approved fallback."""
+    occurrence = (
+        starts_at_utc.isoformat() if starts_at_utc else scheduled_date.isoformat()
+    )
+    return f"bls:{family.name.casefold()}:{occurrence}"
 
 
 def _match_alias(summary: str) -> _AliasRule | None:

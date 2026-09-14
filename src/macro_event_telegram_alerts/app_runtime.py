@@ -13,6 +13,10 @@ from macro_event_telegram_alerts.health import HealthReporter
 from macro_event_telegram_alerts.providers.bea_schedule import BeaScheduleProvider
 from macro_event_telegram_alerts.providers.bea_transport import BeaScheduleTransport
 from macro_event_telegram_alerts.providers.bls_calendar import BlsCalendarProvider
+from macro_event_telegram_alerts.providers.bls_failover import (
+    FailoverBlsProvider,
+    NewYorkFedBlsFallbackProvider,
+)
 from macro_event_telegram_alerts.providers.bls_transport import BlsCalendarTransport
 from macro_event_telegram_alerts.providers.cached_http import (
     CachedDocumentError,
@@ -21,6 +25,9 @@ from macro_event_telegram_alerts.providers.cached_http import (
 )
 from macro_event_telegram_alerts.providers.fed_transport import FomcCalendarTransport
 from macro_event_telegram_alerts.providers.fomc_calendar import FomcCalendarProvider
+from macro_event_telegram_alerts.providers.nyfed_transport import (
+    NewYorkFedCalendarTransport,
+)
 from macro_event_telegram_alerts.reminder_service import (
     ReminderRunResult,
     ReminderService,
@@ -210,11 +217,27 @@ def build_official_providers(
                 max_stale_cache_age=config.source_max_stale_cache_age,
                 allow_network=allow_network,
             )
+            nyfed_transport = NewYorkFedCalendarTransport(
+                cache_dir=cache_dir / "new-york-fed",
+                user_agent=user_agent,
+                clock=clock,
+                min_poll_interval=config.source_poll_interval,
+                rejection_cooldown=config.source_rejection_cooldown,
+                max_retry_backoff=config.source_retry_max_backoff,
+                max_stale_cache_age=config.source_max_stale_cache_age,
+                allow_network=allow_network,
+            )
+            bls_provider = FailoverBlsProvider(
+                primary=BlsCalendarProvider(bls_transport),
+                primary_diagnostics=bls_transport.diagnostics,
+                fallback=NewYorkFedBlsFallbackProvider(nyfed_transport),
+                fallback_diagnostics=nyfed_transport.diagnostics,
+            )
             providers.append(
                 NamedProvider(
                     source,
-                    BlsCalendarProvider(bls_transport),
-                    bls_transport.diagnostics,
+                    bls_provider,
+                    bls_provider.diagnostics,
                 )
             )
         elif source is SourceName.BEA:

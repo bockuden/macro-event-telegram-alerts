@@ -9,6 +9,17 @@ Version 0.1 ships exactly the three adapters documented below: BLS, BEA, and
 the Federal Reserve Board FOMC calendar. Fixture providers are test-only and no
 other live calendar provider is included in the runnable application.
 
+## Approved recovery source (not yet live)
+
+Issue #15 approves the public [New York Fed economic indicators calendar] as a
+secondary schedule source for the four selected BLS event families. It is not a
+fourth configured provider and is not used by the running application until the
+failover implementation and its source-identity tests are complete. See
+[ADR 0002](adr/0002-new-york-fed-bls-fallback.md) for access evidence, exact
+coverage, timezone handling, and commercial-use caveats.
+
+[New York Fed economic indicators calendar]: https://www.newyorkfed.org/research/calendars/i-sep26.html
+
 ## U.S. Bureau of Labor Statistics
 
 - **Implemented events:** CPI, Employment Situation, PPI, JOLTS

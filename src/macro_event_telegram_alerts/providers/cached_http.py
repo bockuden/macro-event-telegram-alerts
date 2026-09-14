@@ -37,6 +37,7 @@ class TransportDiagnostics:
     next_request_at: datetime | None = None
     from_cache: bool = False
     stale: bool = False
+    active_source: str | None = None
 
 
 class CachedDocumentError(RuntimeError):
