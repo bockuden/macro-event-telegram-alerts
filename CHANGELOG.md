@@ -3,6 +3,13 @@
 All notable changes are documented here. This project follows semantic versioning
 from its first public release.
 
+## [0.2.1] - 2026-09-15
+
+### Changed
+
+- Telegram reminder messages now include the scheduled UTC time alongside the
+  source-local scheduled time.
+
 ## [0.2.0] - 2026-09-15
 
 ### Added
