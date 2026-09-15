@@ -40,6 +40,7 @@ def test_message_includes_required_source_facts_and_policy_disclaimer() -> None:
     assert "Consumer Price Index" in message
     assert "U.S. Bureau of Labor Statistics" in message
     assert "2026-09-15 08:30 EDT (America/New_York)" in message
+    assert "2026-09-15 12:30 UTC" in message
     assert "exact time published by the source" in message
     assert "https://www.bls.gov/news.release/cpi.nr0.htm" in message
     assert "not an official institution rating" in message
