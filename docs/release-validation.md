@@ -31,13 +31,22 @@ Prepared on 2026-09-15 before the proposed `v0.2.0` tag.
 - The command returned exit 1 because BLS was degraded by the primary HTTP 403,
   even though fallback BLS events were available.
 
+### Docker Smoke Check
+
+- A local Docker image built successfully as
+  `macro-event-telegram-alerts:issue-17-smoke`.
+- The built wheel inside the image was
+  `macro_event_telegram_alerts-0.2.0-py3-none-any.whl`.
+- `docker image inspect` confirmed the container user is `app`.
+- `docker run --rm macro-event-telegram-alerts:issue-17-smoke check-config
+  --config /app/config.example.toml` passed.
+
 ### Pending Before Publication
 
 - User approval is required before pushing the branch, creating a pull request,
   merging, tagging `v0.2.0`, or publishing a GHCR image.
-- Local Docker smoke testing was not completed on the Windows host because the
-  Docker daemon was unavailable. The tag publication workflow must still build
-  the image, run container smoke checks, and verify anonymous pull.
+- The tag publication workflow must still build the release image, run its own
+  container smoke checks, and verify anonymous pull.
 - After tag publication, verify the `v0.2.0` image is anonymously pullable and
   its source tag, package version, and image label match.
 - Server upgrade verification remains pending until the published image exists.
