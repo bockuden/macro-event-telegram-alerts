@@ -22,10 +22,22 @@ Prepared on 2026-09-15 before the proposed `v0.2.0` tag.
 - BLS primary retrieval still reported HTTP 403, while the active BLS source
   was `new_york_fed` with 4 future timed fallback events.
 
+### Scheduler Dry Run
+
+- `dry-run` against the same isolated config produced two 48-hour FOMC
+  reminders for the September 16, 2026 policy statement and Chair press
+  conference.
+- The dry run did not read Telegram credentials or contact Telegram.
+- The command returned exit 1 because BLS was degraded by the primary HTTP 403,
+  even though fallback BLS events were available.
+
 ### Pending Before Publication
 
 - User approval is required before pushing the branch, creating a pull request,
   merging, tagging `v0.2.0`, or publishing a GHCR image.
+- Local Docker smoke testing was not completed on the Windows host because the
+  Docker daemon was unavailable. The tag publication workflow must still build
+  the image, run container smoke checks, and verify anonymous pull.
 - After tag publication, verify the `v0.2.0` image is anonymously pullable and
   its source tag, package version, and image label match.
 - Server upgrade verification remains pending until the published image exists.
