@@ -30,8 +30,8 @@ remain visible.
 
 - no paid calendar API and no data-provider API key;
 - curated coverage of BLS, BEA, and scheduled FOMC releases;
-- reminders at configurable lead times, initially 24 hours, 60 minutes, and
-  15 minutes;
+- reminders at configurable lead times, initially 48 hours, 24 hours,
+  60 minutes, and 15 minutes;
 - correct source-timezone handling, UTC normalization, and local-time display;
 - explicit source, retrieval time, and timing-precision metadata;
 - persistent delivery state so restarts do not duplicate notifications;

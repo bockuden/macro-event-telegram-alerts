@@ -40,6 +40,7 @@ loop_interval_seconds = 60
     assert [
         int(lead.total_seconds() // 60) for lead in config.reminder_policy.lead_times
     ] == [
+        2880,
         1440,
         60,
         15,

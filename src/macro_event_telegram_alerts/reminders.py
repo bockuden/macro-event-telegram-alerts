@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from macro_event_telegram_alerts.domain import MacroEvent
 
 DEFAULT_LEAD_TIMES = (
+    timedelta(hours=48),
     timedelta(hours=24),
     timedelta(hours=1),
     timedelta(minutes=15),
