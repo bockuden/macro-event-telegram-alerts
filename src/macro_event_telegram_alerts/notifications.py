@@ -23,9 +23,11 @@ def format_reminder_message(reminder: Reminder) -> str:
     """Render source facts without presenting project policy as an official rating."""
     event = reminder.event
     assert event.starts_at_local is not None
+    assert event.starts_at_utc is not None
     timezone_name = getattr(event.starts_at_local.tzinfo, "key", None)
     timezone_suffix = f" ({timezone_name})" if timezone_name else ""
     local_time = event.starts_at_local.strftime("%Y-%m-%d %H:%M %Z")
+    utc_time = event.starts_at_utc.strftime("%Y-%m-%d %H:%M UTC")
     return "\n".join(
         (
             (
@@ -35,6 +37,7 @@ def format_reminder_message(reminder: Reminder) -> str:
             f"Event: {event.title}",
             f"Institution: {event.institution}",
             f"Scheduled local time: {local_time}{timezone_suffix}",
+            f"Scheduled UTC time: {utc_time}",
             f"Timing quality: {_timing_quality(event.timing_precision)}",
             f"Source: {event.source_url}",
             (
