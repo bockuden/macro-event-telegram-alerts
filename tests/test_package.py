@@ -5,4 +5,4 @@ from macro_event_telegram_alerts import __version__
 
 def test_package_version() -> None:
     """The installed package exposes its bootstrap version."""
-    assert __version__ == "0.1.0"
+    assert __version__ == "0.2.0"
