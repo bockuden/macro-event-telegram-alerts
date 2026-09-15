@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Protocol
 
+from macro_event_telegram_alerts import __version__
 from macro_event_telegram_alerts.app_config import AppConfig, SourceName
 from macro_event_telegram_alerts.delivery_ledger import ReminderLedger
 from macro_event_telegram_alerts.domain import MacroEvent
@@ -213,7 +214,10 @@ def build_official_providers(
     config: AppConfig, *, clock: Clock, allow_network: bool = True
 ) -> tuple[NamedProvider, ...]:
     """Build configured official-source adapters without fetching their data."""
-    user_agent = "macro-event-telegram-alerts/0.1.0 (+https://github.com/bockuden/macro-event-telegram-alerts)"
+    user_agent = (
+        f"macro-event-telegram-alerts/{__version__} "
+        "(+https://github.com/bockuden/macro-event-telegram-alerts)"
+    )
     providers: list[NamedProvider] = []
     for source in config.sources:
         cache_dir = config.cache_dir / source.value
