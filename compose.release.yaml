@@ -1,6 +1,6 @@
 services:
   macro-event-telegram-alerts:
-    image: ghcr.io/bockuden/macro-event-telegram-alerts:v0.1.0
+    image: ghcr.io/bockuden/macro-event-telegram-alerts:v0.2.0
     env_file:
       - .env
     init: true

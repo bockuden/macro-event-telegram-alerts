@@ -16,13 +16,13 @@ the linked package as public once; that visibility persists for later releases.
 
 ## Use a released image
 
-For a release such as `v0.1.0`, set the service image in `compose.yaml` and
+For a release such as `v0.2.0`, set the service image in `compose.yaml` and
 remove its local `build` block:
 
 ```yaml
 services:
   macro-event-telegram-alerts:
-    image: ghcr.io/bockuden/macro-event-telegram-alerts:v0.1.0
+    image: ghcr.io/bockuden/macro-event-telegram-alerts:v0.2.0
 ```
 
 Then pull and start it without a local build:

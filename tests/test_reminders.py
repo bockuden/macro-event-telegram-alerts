@@ -53,6 +53,18 @@ def test_default_policy_selects_the_closest_due_lead_time() -> None:
     assert reminder.due_at == datetime(2026, 9, 15, 11, 30, tzinfo=UTC)
 
 
+def test_default_policy_includes_a_48_hour_reminder() -> None:
+    policy = ReminderPolicy()
+
+    (reminder,) = policy.due_reminders(
+        [_event()],
+        datetime(2026, 9, 13, 12, 35, tzinfo=UTC),
+    )
+
+    assert reminder.lead_time == timedelta(hours=48)
+    assert reminder.due_at == datetime(2026, 9, 13, 12, 30, tzinfo=UTC)
+
+
 def test_late_discovery_never_backfills_multiple_messages() -> None:
     policy = ReminderPolicy()
 

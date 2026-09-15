@@ -1,7 +1,7 @@
 # Source diagnostics
 
-This command is introduced after v0.1.0. It is not available inside the original
-v0.1.0 image; use a build containing Issue #13 or a subsequent released image.
+This command is available in v0.2.0 and later. It is not available inside the
+original v0.1.0 image.
 
 ## Inspect the existing cache without network access
 

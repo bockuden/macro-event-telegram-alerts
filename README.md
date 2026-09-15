@@ -18,20 +18,20 @@ deduplicated Telegram notifications. It is intended for traders, researchers,
 and engineers who want advance notice of scheduled macro events without keeping
 a calendar tab open all day.
 
-Version 0.1 deliberately starts with major United States events. Broader country
-coverage will be added source by source only when provenance, timing semantics,
-and reuse conditions are documented.
+The project deliberately starts with major United States events. Broader
+country coverage will be added source by source only when provenance, timing
+semantics, and reuse conditions are documented.
 
 This project will be built in small, reviewable milestones. The repository is
 public early so that its requirements, trade-offs, and implementation history
 remain visible.
 
-## Planned v0.1 capabilities
+## Implemented Capabilities
 
 - no paid calendar API and no data-provider API key;
 - curated coverage of BLS, BEA, and scheduled FOMC releases;
-- reminders at configurable lead times, initially 24 hours, 60 minutes, and
-  15 minutes;
+- reminders at configurable lead times, initially 48 hours, 24 hours,
+  60 minutes, and 15 minutes;
 - correct source-timezone handling, UTC normalization, and local-time display;
 - explicit source, retrieval time, and timing-precision metadata;
 - persistent delivery state so restarts do not duplicate notifications;
@@ -147,9 +147,9 @@ an isolated directory and download the three public release files:
 ```bash
 mkdir -p ~/macro-event-telegram-alerts
 cd ~/macro-event-telegram-alerts
-curl -fsSLO https://raw.githubusercontent.com/bockuden/macro-event-telegram-alerts/v0.1.0/compose.release.yaml
-curl -fsSLO https://raw.githubusercontent.com/bockuden/macro-event-telegram-alerts/v0.1.0/config.example.toml
-curl -fsSLO https://raw.githubusercontent.com/bockuden/macro-event-telegram-alerts/v0.1.0/.env.example
+curl -fsSLO https://raw.githubusercontent.com/bockuden/macro-event-telegram-alerts/v0.2.0/compose.release.yaml
+curl -fsSLO https://raw.githubusercontent.com/bockuden/macro-event-telegram-alerts/v0.2.0/config.example.toml
+curl -fsSLO https://raw.githubusercontent.com/bockuden/macro-event-telegram-alerts/v0.2.0/.env.example
 cp config.example.toml config.toml
 cp .env.example .env
 chmod 600 .env
@@ -189,13 +189,13 @@ The service requires no inbound port or reverse proxy. To stop it without
 forgetting delivery history, run `docker compose -f compose.release.yaml down`.
 Use `down --volumes` only for an intentional reset: it removes the SQLite
 ledger and source cache, so eligible reminders may be sent again. For a newer
-release, replace `v0.1.0` in `compose.release.yaml` only after reading that
-release's notes, then repeat `pull` and `up -d`.
+release, replace the version tag in `compose.release.yaml` only after reading
+that release's notes, then repeat `pull` and `up -d`.
 
 ## Troubleshooting
 
-For builds containing Issue #13 (not the original `v0.1.0` image), inspect source
-status without contacting Telegram or changing delivery history:
+For `v0.2.0` and later builds, inspect source status without contacting
+Telegram or changing delivery history:
 
 ```bash
 python -m macro_event_telegram_alerts diagnose-sources --config config.toml
@@ -242,13 +242,13 @@ The FOMC adapter reads only the official Federal Reserve meeting calendar and
 creates a policy-statement event at 2:00 p.m. Eastern plus a Chair press
 conference event at 2:30 p.m. Eastern for each regular meeting. Future calendar
 dates stay marked as tentative, published source links are retained, and
-unscheduled decisions are explicitly outside v0.1. See the
+unscheduled decisions are explicitly outside the current scope. See the
 [FOMC adapter policy](docs/fomc-adapter.md) for the documented timing rule and
 scope.
 
 ## Initial official sources
 
-| Institution | Planned v0.1 coverage | Public schedule |
+| Institution | Implemented coverage | Public schedule |
 | --- | --- | --- |
 | U.S. Bureau of Labor Statistics | CPI, Employment Situation, PPI, JOLTS | BLS online calendar and ICS feed |
 | U.S. Bureau of Economic Analysis | GDP, Personal Income and Outlays/PCE | BEA release schedule |
@@ -260,7 +260,7 @@ its source.
 
 ## Explicit non-goals
 
-Version 0.1 will not:
+The project will not:
 
 - predict market direction, volatility, or the result of a release;
 - generate trade entries, exits, position sizing, or execution commands;
