@@ -1,4 +1,37 @@
-# v0.1.0 release validation
+# Release Validation
+
+## v0.2.0
+
+Prepared on 2026-09-15 before the proposed `v0.2.0` tag.
+
+### Local Checks
+
+- `ruff check .` passed in the base project directory.
+- `ruff format --check .` reported 83 files already formatted.
+- `mypy` passed with no issues in 60 source files.
+- Full offline pytest passed with `153 passed`.
+
+### Live Source Check
+
+- `diagnose-sources --live` was run against an isolated temporary config and
+  state directory, not the production server volume.
+- FOMC source status was `healthy` with 22 future timed events and next event
+  `2026-09-16T18:00:00+00:00`, matching the scheduled September 15-16, 2026
+  FOMC meeting.
+- BEA source status was `healthy`.
+- BLS primary retrieval still reported HTTP 403, while the active BLS source
+  was `new_york_fed` with 4 future timed fallback events.
+
+### Pending Before Publication
+
+- User approval is required before pushing the branch, creating a pull request,
+  merging, tagging `v0.2.0`, or publishing a GHCR image.
+- After tag publication, verify the `v0.2.0` image is anonymously pullable and
+  its source tag, package version, and image label match.
+- Server upgrade verification remains pending until the published image exists.
+  Preserve the existing Compose volume during upgrade.
+
+## v0.1.0
 
 Validated on 2026-09-07 before the `v0.1.0` tag.
 
