@@ -32,6 +32,7 @@ remain visible.
 - curated coverage of BLS, BEA, and scheduled FOMC releases;
 - reminders at configurable lead times, initially 48 hours, 24 hours,
   60 minutes, and 15 minutes;
+- an optional once-per-day digest of the next configured number of days;
 - correct source-timezone handling, UTC normalization, and local-time display;
 - explicit source, retrieval time, and timing-precision metadata;
 - persistent delivery state so restarts do not duplicate notifications;
@@ -168,7 +169,25 @@ MACRO_EVENT_TELEGRAM_CHAT_ID=replace-with-your-private-or-group-chat-id
 ```
 
 Optionally edit `config.toml` to choose sources, timezone, lead times, or loop
-frequency; it contains names and settings, never secret values. Start the
+frequency. To enable the daily digest, set the following in `config.toml`; the
+hour and minute use the configured application timezone:
+
+```toml
+[digest]
+enabled = true
+hour = 9
+minute = 0
+horizon_days = 7
+```
+
+The digest is sent once per local calendar day after the configured time. It
+includes UTC and source-local time when available, keeps date-only events as
+dates, sorts events chronologically, and uses the same persistent SQLite file
+for once-only delivery state. It contains no reminder claims, so enabling it
+does not suppress normal event reminders. The `dry-run` command prints the
+digest as well as reminders when enabled.
+
+The file contains names and settings, never secret values. Start the
 version-pinned image, then verify its health and safe logs:
 
 ```bash

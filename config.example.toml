@@ -15,6 +15,13 @@ source_max_stale_cache_hours = 168
 loop_interval_seconds = 60
 reminder_lead_minutes = [2880, 1440, 60, 15]
 
+[digest]
+# Optional once-per-local-day summary. It is sent after this local time.
+enabled = false
+hour = 9
+minute = 0
+horizon_days = 7
+
 [operations]
 # Send an incident alert after this many unhealthy source loops.
 enabled = true
