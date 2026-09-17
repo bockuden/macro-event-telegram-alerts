@@ -3,12 +3,13 @@
 import logging
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from typing import Protocol
 
 from macro_event_telegram_alerts import __version__
 from macro_event_telegram_alerts.app_config import AppConfig, SourceName
 from macro_event_telegram_alerts.delivery_ledger import ReminderLedger
+from macro_event_telegram_alerts.digest import DailyDigestService
 from macro_event_telegram_alerts.domain import MacroEvent
 from macro_event_telegram_alerts.health import HealthReporter
 from macro_event_telegram_alerts.providers.bea_schedule import BeaScheduleProvider
@@ -38,6 +39,7 @@ from macro_event_telegram_alerts.source_diagnostics import SourceReport
 
 type Clock = Callable[[], datetime]
 type DeliverReminder = Callable[[Reminder], None]
+type DeliverDigest = Callable[[str], None]
 type ReportOperational = Callable[[SourceReport, datetime], None]
 type Sleep = Callable[[float], None]
 type StopRequested = Callable[[], bool]
@@ -79,16 +81,21 @@ class ApplicationRunner:
         providers: Iterable[NamedProvider],
         reminder_service: ReminderService,
         health_reporter: HealthReporter | None = None,
+        digest_service: DailyDigestService | None = None,
+        digest_timezone: tzinfo | None = None,
     ) -> None:
         self._providers = tuple(providers)
         self._reminder_service = reminder_service
         self._health_reporter = health_reporter
+        self._digest_service = digest_service
+        self._digest_timezone = digest_timezone
 
     def run_once(
         self,
         now: datetime,
         deliver: DeliverReminder,
         report_operational: ReportOperational | None = None,
+        deliver_digest: DeliverDigest | None = None,
     ) -> ApplicationRunResult:
         """Load healthy sources even if another source fails."""
         now_utc = _require_utc(now)
@@ -113,6 +120,10 @@ class ApplicationRunner:
                         named_provider.name.value,
                     )
         reminder_result = self._reminder_service.run(events, now_utc, deliver)
+        if self._digest_service is not None and deliver_digest is not None:
+            self._digest_service.run(
+                events, now_utc, self._digest_timezone, deliver_digest
+            )
         result = ApplicationRunResult(
             loaded_events=len(events),
             failed_sources=tuple(failures),
@@ -140,6 +151,7 @@ class ApplicationRunner:
         clock: Clock,
         deliver: DeliverReminder,
         report_operational: ReportOperational | None = None,
+        deliver_digest: DeliverDigest | None = None,
         loop_interval_seconds: float,
         sleep: Sleep,
         stop_requested: StopRequested,
@@ -149,7 +161,9 @@ class ApplicationRunner:
             raise ValueError("loop_interval_seconds must be positive")
         results: list[ApplicationRunResult] = []
         while not stop_requested():
-            results.append(self.run_once(clock(), deliver, report_operational))
+            results.append(
+                self.run_once(clock(), deliver, report_operational, deliver_digest)
+            )
             if not stop_requested():
                 sleep(loop_interval_seconds)
         return tuple(results)
@@ -300,6 +314,15 @@ def build_runner(config: AppConfig, *, clock: Clock) -> ApplicationRunner:
         build_official_providers(config, clock=clock),
         ReminderService(config.reminder_policy, ReminderLedger(config.ledger_path)),
         HealthReporter(config.health_path),
+        DailyDigestService(
+            config.ledger_path,
+            hour=config.digest.hour,
+            minute=config.digest.minute,
+            horizon_days=config.digest.horizon_days,
+        )
+        if config.digest.enabled
+        else None,
+        config.timezone,
     )
 
 

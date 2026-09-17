@@ -41,6 +41,16 @@ class OperationsConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class DigestConfig:
+    """Optional daily summary policy."""
+
+    enabled: bool
+    hour: int
+    minute: int
+    horizon_days: int
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """All non-secret settings required to run the single process."""
 
@@ -57,6 +67,7 @@ class AppConfig:
     reminder_policy: ReminderPolicy
     telegram: TelegramConfig | None
     operations: OperationsConfig
+    digest: DigestConfig
 
 
 def load_config(path: Path) -> AppConfig:
@@ -70,7 +81,7 @@ def load_config(path: Path) -> AppConfig:
     if not isinstance(document, dict):
         raise ConfigError("configuration root must be a TOML table")
     _reject_unknown_keys(
-        document, {"application", "telegram", "operations"}, "configuration"
+        document, {"application", "telegram", "operations", "digest"}, "configuration"
     )
     application = _table(
         _required(document, "application", "configuration"), "application"
@@ -153,6 +164,7 @@ def load_config(path: Path) -> AppConfig:
         ),
         telegram=_telegram_config(document.get("telegram"), base_dir),
         operations=_operations_config(document.get("operations")),
+        digest=_digest_config(document.get("digest")),
     )
 
 
@@ -271,6 +283,32 @@ def _operations_config(value: object) -> OperationsConfig:
             "operations.followup_interval_minutes",
         ),
     )
+
+
+def _digest_config(value: object) -> DigestConfig:
+    if value is None:
+        return DigestConfig(False, 9, 0, 7)
+    digest = _table(value, "digest")
+    _reject_unknown_keys(
+        digest, {"enabled", "hour", "minute", "horizon_days"}, "digest"
+    )
+    enabled = digest.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ConfigError("digest.enabled must be a boolean")
+    hour = digest.get("hour", 9)
+    minute = digest.get("minute", 0)
+    horizon_days = digest.get("horizon_days", 7)
+    if not isinstance(hour, int) or isinstance(hour, bool) or not 0 <= hour <= 23:
+        raise ConfigError("digest.hour must be between 0 and 23")
+    if not isinstance(minute, int) or isinstance(minute, bool) or not 0 <= minute <= 59:
+        raise ConfigError("digest.minute must be between 0 and 59")
+    if (
+        not isinstance(horizon_days, int)
+        or isinstance(horizon_days, bool)
+        or not 1 <= horizon_days <= 31
+    ):
+        raise ConfigError("digest.horizon_days must be between 1 and 31")
+    return DigestConfig(enabled, hour, minute, horizon_days)
 
 
 def _path_from_section(value: object, base_dir: Path, name: str) -> Path:

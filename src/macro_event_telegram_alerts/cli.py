@@ -11,7 +11,7 @@ from collections.abc import Callable, MutableMapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
-from typing import Protocol, TextIO, cast
+from typing import Any, Protocol, TextIO, cast
 
 from macro_event_telegram_alerts.app_config import ConfigError, SourceName, load_config
 from macro_event_telegram_alerts.app_runtime import (
@@ -42,12 +42,7 @@ class _RunResult(Protocol):
 
 
 class _Runner(Protocol):
-    def run_once(
-        self,
-        now: datetime,
-        deliver: Callable[[Reminder], None],
-        report_operational: Callable[[SourceReport, datetime], None] | None = None,
-    ) -> _RunResult:
+    def run_once(self, *args: Any, **kwargs: Any) -> _RunResult:
         """Run one loop for CLI testability."""
 
 
@@ -101,11 +96,14 @@ def main(
                 lambda message: print(message, file=output)
             )
             operational_deliver: Callable[[str], None] | None = None
+
+            digest_deliver: Callable[[str], None] = _digest_sink(output)
         else:
             load_dotenv(parsed.config.parent / ".env", environment)
             credentials = resolve_telegram_credentials(config.telegram, environment)
             notifier = TelegramNotifier(credentials.token, credentials.chat_id)
             operational_deliver = notifier.deliver_text
+            digest_deliver = notifier.deliver_text
         operational_reporter = (
             OperationalIncidentReporter(
                 OperationalIncidentStore(
@@ -123,11 +121,24 @@ def main(
         runner = runner_builder(config, clock=utc_now)
         if parsed.command == "dry-run" or parsed.once:
             if operational_reporter is None:
-                result = runner.run_once(utc_now(), notifier.deliver)
+                if config.digest.enabled:
+                    result = runner.run_once(
+                        utc_now(), notifier.deliver, deliver_digest=digest_deliver
+                    )
+                else:
+                    result = runner.run_once(utc_now(), notifier.deliver)
             else:
-                result = runner.run_once(
-                    utc_now(), notifier.deliver, operational_reporter.observe
-                )
+                if config.digest.enabled:
+                    result = runner.run_once(
+                        utc_now(),
+                        notifier.deliver,
+                        operational_reporter.observe,
+                        digest_deliver,
+                    )
+                else:
+                    result = runner.run_once(
+                        utc_now(), notifier.deliver, operational_reporter.observe
+                    )
             _print_result(result.failed_sources, error_output)
             return 1 if result.failed_sources else 0
         return _run_forever(
@@ -136,6 +147,7 @@ def main(
             notifier.deliver,
             error_output,
             operational_reporter.observe if operational_reporter else None,
+            digest_deliver if config.digest.enabled else None,
         )
     except ConfigError as error:
         print(f"Configuration error: {error}", file=error_output)
@@ -174,6 +186,7 @@ def _run_forever(
     deliver: Callable[[Reminder], None],
     error_output: TextIO,
     report_operational: Callable[[SourceReport, datetime], None] | None,
+    deliver_digest: Callable[[str], None] | None,
 ) -> int:
     stopping = False
 
@@ -191,6 +204,7 @@ def _run_forever(
             clock=utc_now,
             deliver=deliver,
             report_operational=report_operational,
+            deliver_digest=deliver_digest,
             loop_interval_seconds=loop_interval_seconds,
             sleep=time.sleep,
             stop_requested=lambda: stopping,
@@ -206,6 +220,13 @@ def _run_forever(
 def _print_result(failed_sources: tuple[SourceName, ...], error_output: TextIO) -> None:
     for source in failed_sources:
         print(f"Source failed during this loop: {source.value}", file=error_output)
+
+
+def _digest_sink(output: TextIO) -> Callable[[str], None]:
+    def sink(message: str) -> None:
+        print(message, file=output)
+
+    return sink
 
 
 def _configure_logging() -> None:
