@@ -127,6 +127,20 @@ Inspect due messages locally without a chat ID or token:
 python -m macro_event_telegram_alerts dry-run --config config.toml
 ```
 
+Preview upcoming events without contacting Telegram or changing reminder
+delivery state. The default horizon is seven days; `--days` accepts 1 through
+31:
+
+```bash
+python -m macro_event_telegram_alerts preview --config config.toml
+python -m macro_event_telegram_alerts preview --config config.toml --days 14
+```
+
+The preview includes UTC and source-local times, institution, source name, and
+source URL. It still prints events from healthy sources when another source is
+degraded, and returns a non-zero status to make that degradation visible in
+automation.
+
 Run one live service loop for a deliberate check, or omit `--once` for the
 continuous service. `Ctrl+C` stops it gracefully.
 
@@ -134,6 +148,16 @@ continuous service. `Ctrl+C` stops it gracefully.
 python -m macro_event_telegram_alerts run --once --config config.toml
 python -m macro_event_telegram_alerts run --config config.toml
 ```
+
+After setting both values in `.env`, verify Telegram delivery immediately:
+
+```bash
+python -m macro_event_telegram_alerts send-test --config config.toml
+```
+
+This sends one clearly labelled test message, does not load calendars, and does
+not touch the reminder ledger. Credentials and chat identifiers are never
+included in diagnostics.
 
 ## Deploy on a Linux server with Docker
 

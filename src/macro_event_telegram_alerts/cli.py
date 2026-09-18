@@ -8,12 +8,17 @@ import signal
 import sys
 import time
 from collections.abc import Callable, MutableMapping, Sequence
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import FrameType
 from typing import Any, Protocol, TextIO, cast
 
-from macro_event_telegram_alerts.app_config import ConfigError, SourceName, load_config
+from macro_event_telegram_alerts.app_config import (
+    AppConfig,
+    ConfigError,
+    SourceName,
+    load_config,
+)
 from macro_event_telegram_alerts.app_runtime import (
     ApplicationRunner,
     build_official_providers,
@@ -21,6 +26,8 @@ from macro_event_telegram_alerts.app_runtime import (
     inspect_source,
     utc_now,
 )
+from macro_event_telegram_alerts.delivery_errors import DeliveryError
+from macro_event_telegram_alerts.domain import MacroEvent
 from macro_event_telegram_alerts.notifications import DryRunNotifier
 from macro_event_telegram_alerts.operational_incidents import (
     OperationalIncidentReporter,
@@ -91,6 +98,25 @@ def main(
                 file=output,
             )
             return 1 if any(report.status != "healthy" for report in reports) else 0
+        if parsed.command == "preview":
+            return _preview(config, parsed.days, output, error_output)
+        if parsed.command == "send-test":
+            load_dotenv(parsed.config.parent / ".env", environment)
+            credentials = resolve_telegram_credentials(config.telegram, environment)
+            test_notifier = TelegramNotifier(credentials.token, credentials.chat_id)
+            try:
+                test_notifier.deliver_text(
+                    "Macro Event Telegram Alerts test message\n"
+                    "Telegram credentials and chat delivery are working."
+                )
+            except DeliveryError as error:
+                print(
+                    f"Telegram test message failed (retryable={error.retryable}).",
+                    file=error_output,
+                )
+                return 1
+            print("Telegram test message sent successfully.", file=output)
+            return 0
         if parsed.command == "dry-run":
             notifier: _Notifier = DryRunNotifier(
                 lambda message: print(message, file=output)
@@ -157,7 +183,14 @@ def main(
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="macro-event-telegram-alerts")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    for command in ("check-config", "dry-run", "run", "diagnose-sources"):
+    for command in (
+        "check-config",
+        "dry-run",
+        "run",
+        "diagnose-sources",
+        "preview",
+        "send-test",
+    ):
         subparser = subcommands.add_parser(command)
         subparser.add_argument(
             "--config",
@@ -177,7 +210,73 @@ def _parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="run one service loop, then exit",
             )
+        if command == "preview":
+            subparser.add_argument(
+                "--days",
+                type=_positive_days,
+                default=7,
+                help="number of upcoming days to display (default: 7)",
+            )
     return parser
+
+
+def _positive_days(value: str) -> int:
+    days = int(value)
+    if not 1 <= days <= 31:
+        raise argparse.ArgumentTypeError("days must be between 1 and 31")
+    return days
+
+
+def _preview(config: AppConfig, days: int, output: TextIO, error_output: TextIO) -> int:
+    now = utc_now()
+    horizon = now + timedelta(days=days)
+    events: list[MacroEvent] = []
+    failed = False
+    for provider in build_official_providers(config, clock=utc_now, allow_network=True):
+        loaded, report = inspect_source(provider, now)
+        events.extend(loaded)
+        if report.status != "healthy":
+            failed = True
+            print(f"Source {report.source} status: {report.status}", file=error_output)
+    upcoming = sorted(
+        (
+            event
+            for event in events
+            if (
+                event.starts_at_utc is not None
+                and now <= event.starts_at_utc <= horizon
+            )
+            or (
+                event.starts_at_utc is None
+                and now.date() <= event.scheduled_date <= horizon.date()
+            )
+        ),
+        key=lambda event: (
+            event.starts_at_utc
+            or datetime.combine(event.scheduled_date, datetime.min.time(), tzinfo=UTC),
+            event.title,
+        ),
+    )
+    print(f"Macro event preview - next {days} days", file=output)
+    if not upcoming:
+        print("No upcoming events found.", file=output)
+    for event in upcoming:
+        local = (
+            event.starts_at_local.strftime("%Y-%m-%d %H:%M %Z")
+            if event.starts_at_local
+            else event.scheduled_date.isoformat()
+        )
+        utc = (
+            event.starts_at_utc.strftime("%Y-%m-%d %H:%M UTC")
+            if event.starts_at_utc
+            else "date-only"
+        )
+        print(
+            f"{utc} | local: {local} | {event.title} | "
+            f"{event.institution} | source: {event.source_id} | {event.source_url}",
+            file=output,
+        )
+    return 1 if failed else 0
 
 
 def _run_forever(
