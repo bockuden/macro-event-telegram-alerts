@@ -29,7 +29,7 @@ remain visible.
 ## Implemented Capabilities
 
 - no paid calendar API and no data-provider API key;
-- curated coverage of BLS, BEA, and scheduled FOMC releases;
+- curated coverage of BLS, BEA, Census retail sales, and scheduled FOMC releases;
 - reminders at configurable lead times, initially 48 hours, 24 hours,
   60 minutes, and 15 minutes;
 - an optional once-per-day digest of the next configured number of days;

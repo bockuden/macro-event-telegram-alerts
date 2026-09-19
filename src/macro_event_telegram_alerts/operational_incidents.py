@@ -23,6 +23,7 @@ class _IncidentEntry(TypedDict):
     attempts: int
     retry_at: str | None
     last_notified_at: str | None
+    active_source: str | None
 
 
 class OperationalIncidentStore:
@@ -39,17 +40,22 @@ class OperationalIncidentStore:
         now: datetime,
         failure_threshold: int = 1,
         followup_interval: timedelta = timedelta(hours=24),
+        active_source: str | None = None,
     ) -> IncidentChange | None:
         now = _utc(now)
         if failure_threshold <= 0 or followup_interval <= timedelta(0):
             raise ValueError("incident notification policy must be positive")
         state = self._read()
         entry = state.get(source, _empty_entry())
+        changed_active_source = entry["active_source"] != active_source
+        entry["active_source"] = active_source
         if degraded:
             entry["failures"] += 1
             state[source] = entry
             self._write(state)
-            if _due(entry, now) and entry["failures"] >= failure_threshold:
+            if (_due(entry, now) or changed_active_source) and entry[
+                "failures"
+            ] >= failure_threshold:
                 return IncidentChange(
                     source, "opened" if not entry["notified"] else "follow_up"
                 )
@@ -96,11 +102,16 @@ class OperationalIncidentStore:
             raw: object = json.loads(self._path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
             raise ValueError("operational incident state is invalid") from error
-        if not isinstance(raw, dict) or not all(
-            isinstance(key, str) and _valid_entry(value) for key, value in raw.items()
-        ):
+        if not isinstance(raw, dict):
             raise ValueError("operational incident state is invalid")
-        return {key: cast(_IncidentEntry, value) for key, value in raw.items()}
+        normalized: dict[str, _IncidentEntry] = {}
+        for key, value in raw.items():
+            if not isinstance(key, str) or not _valid_entry(value):
+                raise ValueError("operational incident state is invalid")
+            entry = dict(value)
+            entry.setdefault("active_source", None)
+            normalized[key] = cast(_IncidentEntry, entry)
+        return normalized
 
     def _write(self, state: dict[str, _IncidentEntry]) -> None:
         temporary = self._path.with_suffix(self._path.suffix + ".tmp")
@@ -129,11 +140,12 @@ def _empty_entry() -> _IncidentEntry:
         "attempts": 0,
         "retry_at": None,
         "last_notified_at": None,
+        "active_source": None,
     }
 
 
 def _valid_entry(value: object) -> bool:
-    if not isinstance(value, dict) or set(value) != set(_empty_entry()):
+    if not isinstance(value, dict) or not set(value).issubset(set(_empty_entry())):
         return False
     return (
         isinstance(value["failures"], int)
@@ -147,6 +159,7 @@ def _valid_entry(value: object) -> bool:
             value[name] is None or isinstance(value[name], str)
             for name in ("retry_at", "last_notified_at")
         )
+        and (value["active_source"] is None or isinstance(value["active_source"], str))
     )
 
 
@@ -191,6 +204,7 @@ class OperationalIncidentReporter:
             now=now,
             failure_threshold=self._failure_threshold,
             followup_interval=self._followup_interval,
+            active_source=report.transport.active_source,
         )
         if change is None:
             return
@@ -228,7 +242,7 @@ def format_operational_message(change: IncidentChange, report: SourceReport) -> 
     }[change.kind]
     facts = [f"Source: {report.source}", f"Status: {report.status}"]
     if report.transport.active_source:
-        facts.append(f"Active source: {report.transport.active_source}")
+        facts.append(f"Fallback coverage active: {report.transport.active_source}")
     if report.transport.category:
         facts.append(f"Reason: {report.transport.category.value}")
     if report.transport.http_status is not None:
