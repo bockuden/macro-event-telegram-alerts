@@ -305,6 +305,31 @@ def build_official_providers(
                     fomc_transport.diagnostics,
                 )
             )
+        elif source is SourceName.CENSUS:
+            from macro_event_telegram_alerts.providers.census_schedule import (
+                CensusScheduleProvider,
+            )
+            from macro_event_telegram_alerts.providers.census_transport import (
+                CensusScheduleTransport,
+            )
+
+            census_transport = CensusScheduleTransport(
+                cache_dir=cache_dir,
+                user_agent=user_agent,
+                clock=clock,
+                min_poll_interval=config.source_poll_interval,
+                rejection_cooldown=config.source_rejection_cooldown,
+                max_retry_backoff=config.source_retry_max_backoff,
+                max_stale_cache_age=config.source_max_stale_cache_age,
+                allow_network=allow_network,
+            )
+            providers.append(
+                NamedProvider(
+                    source,
+                    CensusScheduleProvider(census_transport),
+                    census_transport.diagnostics,
+                )
+            )
     return tuple(providers)
 
 

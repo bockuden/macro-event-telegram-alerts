@@ -20,6 +20,7 @@ class SourceName(StrEnum):
     BLS = "bls"
     BEA = "bea"
     FOMC = "fomc"
+    CENSUS = "census"
 
 
 @dataclass(frozen=True, slots=True)
