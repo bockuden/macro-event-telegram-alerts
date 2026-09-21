@@ -12,6 +12,7 @@ from macro_event_telegram_alerts.delivery_ledger import ReminderLedger
 from macro_event_telegram_alerts.digest import DailyDigestService
 from macro_event_telegram_alerts.domain import MacroEvent
 from macro_event_telegram_alerts.health import HealthReporter
+from macro_event_telegram_alerts.policy import EventImportance, importance_at_least
 from macro_event_telegram_alerts.providers.bea_schedule import BeaScheduleProvider
 from macro_event_telegram_alerts.providers.bea_transport import BeaScheduleTransport
 from macro_event_telegram_alerts.providers.bls_calendar import BlsCalendarProvider
@@ -83,12 +84,14 @@ class ApplicationRunner:
         health_reporter: HealthReporter | None = None,
         digest_service: DailyDigestService | None = None,
         digest_timezone: tzinfo | None = None,
+        minimum_importance: EventImportance = EventImportance.MEDIUM,
     ) -> None:
         self._providers = tuple(providers)
         self._reminder_service = reminder_service
         self._health_reporter = health_reporter
         self._digest_service = digest_service
         self._digest_timezone = digest_timezone
+        self._minimum_importance = minimum_importance
 
     def run_once(
         self,
@@ -119,6 +122,11 @@ class ApplicationRunner:
                         "Operational source notification failed: source=%s",
                         named_provider.name.value,
                     )
+        events = [
+            event
+            for event in events
+            if importance_at_least(event.policy, self._minimum_importance)
+        ]
         reminder_result = self._reminder_service.run(events, now_utc, deliver)
         if self._digest_service is not None and deliver_digest is not None:
             self._digest_service.run(
@@ -348,6 +356,7 @@ def build_runner(config: AppConfig, *, clock: Clock) -> ApplicationRunner:
         if config.digest.enabled
         else None,
         config.timezone,
+        config.minimum_importance,
     )
 
 
