@@ -33,6 +33,7 @@ from macro_event_telegram_alerts.operational_incidents import (
     OperationalIncidentReporter,
     OperationalIncidentStore,
 )
+from macro_event_telegram_alerts.policy import importance_at_least
 from macro_event_telegram_alerts.reminders import Reminder
 from macro_event_telegram_alerts.secrets import (
     load_dotenv,
@@ -100,6 +101,8 @@ def main(
             return 1 if any(report.status != "healthy" for report in reports) else 0
         if parsed.command == "preview":
             return _preview(config, parsed.days, output, error_output)
+        if parsed.command == "status":
+            return _status(config, output, error_output, environment)
         if parsed.command == "send-test":
             load_dotenv(parsed.config.parent / ".env", environment)
             credentials = resolve_telegram_credentials(config.telegram, environment)
@@ -189,6 +192,7 @@ def _parser() -> argparse.ArgumentParser:
         "run",
         "diagnose-sources",
         "preview",
+        "status",
         "send-test",
     ):
         subparser = subcommands.add_parser(command)
@@ -242,13 +246,16 @@ def _preview(config: AppConfig, days: int, output: TextIO, error_output: TextIO)
         (
             event
             for event in events
-            if (
-                event.starts_at_utc is not None
-                and now <= event.starts_at_utc <= horizon
-            )
-            or (
-                event.starts_at_utc is None
-                and now.date() <= event.scheduled_date <= horizon.date()
+            if importance_at_least(event.policy, config.minimum_importance)
+            and (
+                (
+                    event.starts_at_utc is not None
+                    and now <= event.starts_at_utc <= horizon
+                )
+                or (
+                    event.starts_at_utc is None
+                    and now.date() <= event.scheduled_date <= horizon.date()
+                )
             )
         ),
         key=lambda event: (
@@ -276,6 +283,48 @@ def _preview(config: AppConfig, days: int, output: TextIO, error_output: TextIO)
             f"{event.institution} | source: {event.source_id} | {event.source_url}",
             file=output,
         )
+    return 1 if failed else 0
+
+
+def _status(
+    config: AppConfig,
+    output: TextIO,
+    error_output: TextIO,
+    environment: MutableMapping[str, str],
+) -> int:
+    """Print read-only source and configuration health without secrets."""
+    now = utc_now()
+    failed = False
+    for provider in build_official_providers(config, clock=utc_now, allow_network=True):
+        events, report = inspect_source(provider, now)
+        selected = [
+            event
+            for event in events
+            if importance_at_least(event.policy, config.minimum_importance)
+        ]
+        if report.status != "healthy":
+            failed = True
+        print(f"Source {report.source}: {report.status}", file=output)
+        if report.transport.active_source:
+            print(f"  Fallback coverage: {report.transport.active_source}", file=output)
+        print(f"  Future events: {len(selected)}", file=output)
+        timed = [event.starts_at_utc for event in selected if event.starts_at_utc]
+        if timed:
+            print(f"  Next event UTC: {min(timed).isoformat()}", file=output)
+        if report.status != "healthy":
+            print(f"Source {report.source} status: {report.status}", file=error_output)
+    leads = ", ".join(
+        f"{int(value.total_seconds() // 60)}m"
+        for value in config.reminder_policy.lead_times
+    )
+    print(f"Reminder lead times: {leads}", file=output)
+    print(f"Minimum importance: {config.minimum_importance.value}", file=output)
+    telegram_configured = config.telegram is not None
+    print(
+        f"Telegram configuration: {'configured' if telegram_configured else 'missing'}",
+        file=output,
+    )
+    del environment
     return 1 if failed else 0
 
 

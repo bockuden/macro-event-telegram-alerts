@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from macro_event_telegram_alerts.domain import MacroEvent, TimingPrecision
-from macro_event_telegram_alerts.policy import EventSignificance, SignificancePolicy
+from macro_event_telegram_alerts.policy import (
+    EventImportance,
+    EventSignificance,
+    SignificancePolicy,
+)
 from macro_event_telegram_alerts.providers.census_transport import (
     CENSUS_CALENDAR_URL,
     CensusScheduleTransport,
@@ -14,7 +18,7 @@ from macro_event_telegram_alerts.providers.census_transport import (
 CENSUS_INSTITUTION = "U.S. Census Bureau"
 CENSUS_TIMEZONE = ZoneInfo("America/New_York")
 CENSUS_SIGNIFICANCE_POLICY = SignificancePolicy(
-    EventSignificance.SIGNIFICANT, "census-retail-v1"
+    EventSignificance.SIGNIFICANT, "census-retail-v1", EventImportance.MEDIUM
 )
 
 

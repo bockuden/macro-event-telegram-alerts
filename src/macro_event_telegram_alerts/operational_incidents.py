@@ -159,7 +159,10 @@ def _valid_entry(value: object) -> bool:
             value[name] is None or isinstance(value[name], str)
             for name in ("retry_at", "last_notified_at")
         )
-        and (value["active_source"] is None or isinstance(value["active_source"], str))
+        and (
+            value.get("active_source") is None
+            or isinstance(value.get("active_source"), str)
+        )
     )
 
 

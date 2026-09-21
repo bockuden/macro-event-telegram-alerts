@@ -8,7 +8,11 @@ from urllib.parse import urljoin, urlsplit
 from zoneinfo import ZoneInfo
 
 from macro_event_telegram_alerts.domain import MacroEvent, TimingPrecision
-from macro_event_telegram_alerts.policy import EventSignificance, SignificancePolicy
+from macro_event_telegram_alerts.policy import (
+    EventImportance,
+    EventSignificance,
+    SignificancePolicy,
+)
 from macro_event_telegram_alerts.providers.fed_transport import (
     FOMC_CALENDAR_URL,
     FomcCalendarTransport,
@@ -30,6 +34,7 @@ FOMC_TIME_POLICY_URL = (
 FOMC_SIGNIFICANCE_POLICY = SignificancePolicy(
     significance=EventSignificance.SIGNIFICANT,
     revision="fomc-scheduled-communications-v1",
+    importance=EventImportance.HIGH,
 )
 
 _REGULAR_DATES = re.compile(r"^(\d{1,2})-(\d{1,2})(?:\*)?$")

@@ -7,7 +7,11 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from macro_event_telegram_alerts.domain import MacroEvent, TimingPrecision
-from macro_event_telegram_alerts.policy import EventSignificance, SignificancePolicy
+from macro_event_telegram_alerts.policy import (
+    EventImportance,
+    EventSignificance,
+    SignificancePolicy,
+)
 from macro_event_telegram_alerts.providers.bls_transport import BlsCalendarTransport
 from macro_event_telegram_alerts.providers.icalendar import (
     CalendarEvent,
@@ -22,6 +26,7 @@ BLS_TIMEZONE = ZoneInfo("America/New_York")
 BLS_SIGNIFICANCE_POLICY = SignificancePolicy(
     significance=EventSignificance.SIGNIFICANT,
     revision="bls-significant-releases-v1",
+    importance=EventImportance.HIGH,
 )
 
 

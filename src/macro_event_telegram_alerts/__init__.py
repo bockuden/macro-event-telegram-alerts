@@ -5,7 +5,11 @@ from macro_event_telegram_alerts.notifications import (
     DryRunNotifier,
     format_reminder_message,
 )
-from macro_event_telegram_alerts.policy import EventSignificance, SignificancePolicy
+from macro_event_telegram_alerts.policy import (
+    EventImportance,
+    EventSignificance,
+    SignificancePolicy,
+)
 from macro_event_telegram_alerts.reminders import Reminder, ReminderPolicy
 from macro_event_telegram_alerts.telegram_notifier import (
     TelegramDeliveryError,
@@ -16,6 +20,7 @@ __version__ = "0.2.1"
 
 __all__ = [
     "DryRunNotifier",
+    "EventImportance",
     "EventSignificance",
     "MacroEvent",
     "Reminder",
