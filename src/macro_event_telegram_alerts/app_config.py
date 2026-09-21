@@ -7,6 +7,7 @@ from enum import StrEnum
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from macro_event_telegram_alerts.policy import EventImportance
 from macro_event_telegram_alerts.reminders import DEFAULT_LEAD_TIMES, ReminderPolicy
 
 
@@ -69,6 +70,7 @@ class AppConfig:
     telegram: TelegramConfig | None
     operations: OperationsConfig
     digest: DigestConfig
+    minimum_importance: EventImportance
 
 
 def load_config(path: Path) -> AppConfig:
@@ -101,6 +103,7 @@ def load_config(path: Path) -> AppConfig:
             "source_max_stale_cache_hours",
             "loop_interval_seconds",
             "reminder_lead_minutes",
+            "minimum_importance",
         },
         "application",
     )
@@ -166,6 +169,7 @@ def load_config(path: Path) -> AppConfig:
         telegram=_telegram_config(document.get("telegram"), base_dir),
         operations=_operations_config(document.get("operations")),
         digest=_digest_config(document.get("digest")),
+        minimum_importance=_importance(application.get("minimum_importance", "medium")),
     )
 
 
@@ -230,6 +234,17 @@ def _positive_integer(value: object, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise ConfigError(f"{name} must be a positive integer")
     return value
+
+
+def _importance(value: object) -> EventImportance:
+    if not isinstance(value, str):
+        raise ConfigError("application.minimum_importance must be a string")
+    try:
+        return EventImportance(value)
+    except ValueError as error:
+        raise ConfigError(
+            "application.minimum_importance must be low, medium, or high"
+        ) from error
 
 
 def _telegram_config(value: object, base_dir: Path) -> TelegramConfig | None:

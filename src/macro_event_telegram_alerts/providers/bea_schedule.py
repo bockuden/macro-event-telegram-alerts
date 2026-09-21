@@ -8,7 +8,11 @@ from urllib.parse import urljoin, urlsplit
 from zoneinfo import ZoneInfo
 
 from macro_event_telegram_alerts.domain import MacroEvent, TimingPrecision
-from macro_event_telegram_alerts.policy import EventSignificance, SignificancePolicy
+from macro_event_telegram_alerts.policy import (
+    EventImportance,
+    EventSignificance,
+    SignificancePolicy,
+)
 from macro_event_telegram_alerts.providers.bea_html import (
     BeaScheduleParseError,
     BeaScheduleRow,
@@ -24,6 +28,7 @@ BEA_TIMEZONE = ZoneInfo("America/New_York")
 BEA_SIGNIFICANCE_POLICY = SignificancePolicy(
     significance=EventSignificance.SIGNIFICANT,
     revision="bea-significant-releases-v1",
+    importance=EventImportance.MEDIUM,
 )
 
 

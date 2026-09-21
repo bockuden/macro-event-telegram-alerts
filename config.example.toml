@@ -14,6 +14,8 @@ source_retry_max_backoff_minutes = 1440
 source_max_stale_cache_hours = 168
 loop_interval_seconds = 60
 reminder_lead_minutes = [2880, 1440, 60, 15]
+# Project policy filter: low, medium, or high. Default medium preserves current coverage.
+minimum_importance = "medium"
 
 [digest]
 # Optional once-per-local-day summary. It is sent after this local time.

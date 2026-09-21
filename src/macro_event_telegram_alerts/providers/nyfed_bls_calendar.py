@@ -5,7 +5,11 @@ from datetime import UTC, date, datetime
 from html.parser import HTMLParser
 
 from macro_event_telegram_alerts.domain import MacroEvent, TimingPrecision
-from macro_event_telegram_alerts.policy import EventSignificance, SignificancePolicy
+from macro_event_telegram_alerts.policy import (
+    EventImportance,
+    EventSignificance,
+    SignificancePolicy,
+)
 from macro_event_telegram_alerts.providers.bls_calendar import (
     BLS_INSTITUTION,
     BLS_TIMEZONE,
@@ -18,6 +22,7 @@ NYFED_CALENDAR_URL = "https://www.newyorkfed.org/research/calendars/"
 NYFED_SIGNIFICANCE_POLICY = SignificancePolicy(
     significance=EventSignificance.SIGNIFICANT,
     revision="bls-significant-releases-v1",
+    importance=EventImportance.HIGH,
 )
 
 
