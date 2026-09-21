@@ -33,6 +33,7 @@ remain visible.
 - reminders at configurable lead times, initially 48 hours, 24 hours,
   60 minutes, and 15 minutes;
 - an optional once-per-day digest of the next configured number of days;
+- project-owned importance filtering for high, medium, and low event tiers;
 - correct source-timezone handling, UTC normalization, and local-time display;
 - explicit source, retrieval time, and timing-precision metadata;
 - persistent delivery state so restarts do not duplicate notifications;
@@ -140,6 +141,22 @@ The preview includes UTC and source-local times, institution, source name, and
 source URL. It still prints events from healthy sources when another source is
 degraded, and returns a non-zero status to make that degradation visible in
 automation.
+
+Get a concise read-only service report with source health, fallback coverage,
+filtered event counts, next UTC event, reminder leads, and Telegram configuration
+presence:
+
+```bash
+python -m macro_event_telegram_alerts status --config config.toml
+```
+
+The status command does not send Telegram messages or change the SQLite reminder
+ledger. In Docker, run it without starting a second service:
+
+```bash
+docker compose -f compose.release.yaml run --rm macro-event-telegram-alerts \
+  python -m macro_event_telegram_alerts status --config /app/config.toml
+```
 
 Run one live service loop for a deliberate check, or omit `--once` for the
 continuous service. `Ctrl+C` stops it gracefully.

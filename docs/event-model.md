@@ -23,6 +23,11 @@ events require neither, so the system never turns an unknown time into midnight.
 `SignificancePolicy` is deliberately separate from source facts. It records the
 project-assigned `significance` and the configuration `revision` that made the
 classification. Messages must not present this value as an institution rating.
+It also carries a project-owned `EventImportance` tier (`low`, `medium`, or
+`high`). This tier is a filtering aid, not an official rating from any source.
+The default minimum is `medium`; setting
+`application.minimum_importance = "high"` limits reminders, previews, status
+counts, and digests to high-tier events.
 
 ## JSON fixture contract
 
