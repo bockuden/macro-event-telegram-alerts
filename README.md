@@ -186,6 +186,9 @@ example values or paste either value into GitHub.
 Install Docker Engine plus the Docker Compose plugin on the server, then create
 an isolated directory and download the three public release files:
 
+For the complete production install, upgrade, health-check, and rollback
+runbook, see [production deployment and rollback](docs/production-deployment.md).
+
 ```bash
 mkdir -p ~/macro-event-telegram-alerts
 cd ~/macro-event-telegram-alerts
